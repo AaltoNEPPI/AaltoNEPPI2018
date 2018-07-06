@@ -1,0 +1,6 @@
+export CPU_MODEL = nrf52832xxaa
+
+# Nordic nrf5 SDK softdevice version
+export NRF_SD_VERS = s132
+
+include $(RIOTBOARD)/common/nrf52xxxdk/Makefile.include

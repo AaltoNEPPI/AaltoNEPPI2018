@@ -1,0 +1,3 @@
+include $(RIOTBOARD)/common/nrf52xxxdk/Makefile.dep
+
+USEPKG += nordic_softdevice_ble
