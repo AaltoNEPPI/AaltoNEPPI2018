@@ -61,10 +61,6 @@ USEPKG += nordic_softdevice_ble
 
 include $(RIOTBASE)/Makefile.include
 
-# Include the board definition
-# 
-include ../boards/neppi2018/Makefile.include
-
 # ... and define them here (after including Makefile.include,
 # otherwise you modify the standard target):
 #proj_data.h: script.py data.tar.gz
