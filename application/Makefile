@@ -29,6 +29,9 @@ RIOTBASE ?= $(CURDIR)/../RIOT
 #CFLAGS += -DSCHEDSTATISTICS
 
 CFLAGS += -DNRF_SDH_BLE_VS_UUID_COUNT=1
+CFLAGS += -DAPA102_PARAM_LED_NUMOF=1
+CFLAGS += -DAPA102_PARAM_DATA_PIN=GPIO_PIN\(0,29\)
+CFLAGS += -DAPA102_PARAM_CLK_PIN=GPIO_PIN\(0,28\)
 
 # If you want to use native with valgrind, you should recompile native
 # with the target all-valgrind instead of all:
@@ -48,9 +51,8 @@ USEMODULE += shell
 #USEMODULE += posix
 USEMODULE += xtimer
 USEMODULE += periph_uart
+USEMODULE += apa102
 #USEMODULE += mpu9250
-#USEMODULE += bme280
-#USEMODULE += tcs34725
 
 # Packages to include
 
