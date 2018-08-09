@@ -13,34 +13,18 @@
 
 int main(int ac, char **av)
 {
-    //This shouldn't be here, but I don't know how to transfer it from the leds_init()
-    //function to the led_set_color() function without passing through main.
-    //Maybe some sort of extern variable? But decleared where, how?
-    kernel_pid_t led_pid;
-
-    //Similar thing here. I can't call it in leds_init(), because won't it be freed
-    //when the function returns?
-    char led_thread_stack[(THREAD_STACKSIZE_DEFAULT)];
-    led_pid = leds_init(led_thread_stack);
+    //Initialize LED API. This starts a new thread.
+    leds_init();
     LED2_TOGGLE;
-    //Is APA102_PARAM visibility okay here? We can hide it if we always
-    //light all leds with the same color. Otherwise we need to know
-    //how many leds there are, and this is it.
-    color_rgba_t leds[APA102_PARAM_LED_NUMOF];
-    
-    //Now we fill all the colors into the led array. Could be hidden in API if
-    //Colors were all the same.
-    for (int i = 0; i < APA102_PARAM_LED_NUMOF; i++)
-    {
-        leds[i].alpha = 100;
-        memset(&leds[i].color, 0, sizeof(color_rgb_t));
-        leds[i].color.r = 255;
-        leds[i].color.g = 0;
-        leds[i].color.b = 0;
-    }
+    color_rgba_t led_color;
+    //Apparently the struct needs to be set to 0
+    memset(&led_color, 0, sizeof(color_rgb_t));
+    led_color.color.r = 255;
+    led_color.color.g = 0;
+    led_color.color.b = 0;
+    led_color.alpha = 100;
     LED0_TOGGLE;
-    //currently only switch the color once
-    led_set_color(leds, led_pid);
+    led_set_color(led_color);
     LED1_TOGGLE;
     while(1)
     {
