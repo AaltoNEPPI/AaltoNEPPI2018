@@ -17,7 +17,7 @@ extern "C" {
 #endif
 
 //Takes in an array of colors with alpha
-void led_set_color(color_rgba_t leds);
+void leds_set_color(color_rgba_t led_color);
 
 //Initializes the led thread
 void leds_init(void);
