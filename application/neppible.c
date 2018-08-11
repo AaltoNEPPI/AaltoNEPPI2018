@@ -36,6 +36,9 @@
  * Type of the message that starts the BLE thread
  */
 #define BLE_THREAD_START 555
+#define BLE_EVT_HANDLER_MESSAGE 444
+
+#define RCV_QUEUE_SIZE  (8)
 
 /**
  * RIOT thread priority for the BLE handler.
@@ -139,6 +142,11 @@ typedef struct {
      */
     ble_gatts_char_handles_t char_handles[2];
 } ble_os_t;
+
+typedef struct {
+    ble_evt_t * p_ble_evt;
+    void * p_context;
+} event_context_t;
 
 static ble_os_t our_service;
 
@@ -428,9 +436,43 @@ static void
 ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
 {
     //ble_conn_params_on_ble_evt(p_ble_evt);
+    //on_ble_evt(&our_service, p_ble_evt);
+    //ble_our_service_on_ble_evt(&our_service, p_ble_evt);
+    msg_t m;
+    ble_evt_t *p_ble_evt_cpy;
+
+    p_ble_evt_cpy = (ble_evt_t *)malloc(sizeof(ble_evt_t));
+    *p_ble_evt_cpy = *p_ble_evt;
+
+    m.type = BLE_EVT_HANDLER_MESSAGE;
+    m.content.ptr = p_ble_evt_cpy;
+    // msg_try_send because we REALLY don't want to block in a random thread.
+    if (!msg_try_send(&m, ble_thread_pid)){
+        free(p_ble_evt_cpy);
+    }
+    //m.type = BLE_EVT_HANDLER_MESSAGE;
+    //DEBUG("Pointer in handler: %p\n",(void *)p_ble_evt);
+    //m.content.ptr = (void *)p_ble_evt;
+    //msg_try_send(&m, ble_thread_pid);
+}
+
+static void
+ble_thread_handle_event(ble_evt_t const * p_ble_evt)
+{
     on_ble_evt(&our_service, p_ble_evt);
     ble_our_service_on_ble_evt(&our_service, p_ble_evt);
 }
+
+/*
+static void
+ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
+{
+    DEBUG("Pointer in handler: %p\n",(void *)p_ble_evt);
+    on_ble_evt(&our_service, p_ble_evt);
+    ble_our_service_on_ble_evt(&our_service, p_ble_evt);
+}
+*/
+static msg_t rcv_queue[RCV_QUEUE_SIZE];
 
 void *ble_thread(void *arg)
 {
@@ -439,6 +481,7 @@ void *ble_thread(void *arg)
     DEBUG("2nd thread started, pid: %" PRIkernel_pid "\n", thread_getpid());
     // Wait until start message has been sent.
     msg_t m;
+    msg_init_queue(rcv_queue, RCV_QUEUE_SIZE);
     for (;;) {
         msg_receive(&m);
         if (m.type == BLE_THREAD_START) {
@@ -457,6 +500,12 @@ void *ble_thread(void *arg)
 	        break;
 	    case UPDATE_ENERGY:
 	        acc_characteristic_update(&our_service, &m.content.value, 1);
+            break;
+        case BLE_EVT_HANDLER_MESSAGE:
+            ;
+            DEBUG("Pointer: %p\n",m.content.ptr);
+            ble_thread_handle_event((ble_evt_t const *)m.content.ptr);
+            free((event_context_t *)m.content.ptr);
 	        break;
 	    default:
 	        break;
