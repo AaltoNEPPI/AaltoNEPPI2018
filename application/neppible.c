@@ -33,13 +33,18 @@
 //#define LED_CONNECTED_OFF LED1_OFF
 
 /**
- * Type of the message that starts the BLE thread
+ * TODO Sort these things:
  */
 #define BLE_THREAD_START 555
-#define BLE_EVT_HANDLER_MESSAGE 444
 
 #define RCV_QUEUE_SIZE  (8)
 
+#ifndef BLE_GATT_DB_MAX_CHARS
+#define BLE_GATT_DB_MAX_CHARS 6
+#endif
+
+static uint8_t char_count = 0;
+static kernel_pid_t send_pid;
 /**
  * RIOT thread priority for the BLE handler.
  * We use the same thread priority as for TCP/IP network interfaces.
@@ -124,8 +129,8 @@
 
 // Just a random, but recognizable values, for the service and characteristics
 #define BLE_UUID_OUR_SERVICE                             0xABDC
-#define BLE_UUID_ENERGY_CHARACTERISTIC                 	 0xBBCF
-#define BLE_UUID_CONTROLS_CHARACTERISTIC                 0xBBD0
+//#define BLE_UUID_ENERGY_CHARACTERISTIC                 	 0xBBCF
+//#define BLE_UUID_CONTROLS_CHARACTERISTIC                 0xBBD0
 
 typedef struct {
     /**
@@ -140,14 +145,18 @@ typedef struct {
     /**
      * Handle of characteristic (as provided by the BLE stack).
      */
-    ble_gatts_char_handles_t char_handles[2];
+    ble_gatts_char_handles_t char_handles[BLE_GATT_DB_MAX_CHARS];
+    /**
+     * UUID of the characteristic. This is not from the BLE stack.
+     */
+    uint16_t uuids[BLE_GATT_DB_MAX_CHARS];
 } ble_os_t;
-
+/*
 typedef struct {
     ble_evt_t * p_ble_evt;
     void * p_context;
 } event_context_t;
-
+*/
 static ble_os_t our_service;
 
 /**************
@@ -158,7 +167,7 @@ static ble_os_t our_service;
 static kernel_pid_t ble_thread_pid;
 
 static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context);
-static void add_characteristic(ble_os_t* p_our_service, uint16_t  characteristic, uint8_t char_index);
+static void add_characteristic(ble_os_t* p_our_service, uint16_t  characteristic, uint16_t initial_value);
 
 
 /**
@@ -218,8 +227,8 @@ static void services_init(const ble_context_t* p_ble_context)
 
     p_our_service->conn_handle = BLE_CONN_HANDLE_INVALID;
 
-    add_characteristic(p_our_service, BLE_UUID_CONTROLS_CHARACTERISTIC, 0);
-    add_characteristic(p_our_service, BLE_UUID_ENERGY_CHARACTERISTIC, 1);
+    //add_characteristic(p_our_service, BLE_UUID_CONTROLS_CHARACTERISTIC, 0);
+    //add_characteristic(p_our_service, BLE_UUID_ENERGY_CHARACTERISTIC, 1);
 }
 
 /**
@@ -265,8 +274,11 @@ static void gatt_init(void)
     NRF_APP_ERROR_CHECK(err_code);
 }
 
-static void add_characteristic(ble_os_t* p_our_service, uint16_t  characteristic, uint8_t char_index)
+static void add_characteristic(ble_os_t* p_our_service, uint16_t  characteristic, uint16_t value)
 {
+    // Before we do anything, we need to be sure that we're not full.
+    assert(char_count < BLE_GATT_DB_MAX_CHARS);
+
     ble_uuid128_t base_uuid = BLE_UUID_OUR_BASE_UUID;
     uint32_t      err_code = 0;
     ble_uuid_t    char_uuid;
@@ -307,17 +319,21 @@ static void add_characteristic(ble_os_t* p_our_service, uint16_t  characteristic
     attr_char_value.p_attr_md = &attr_md;
 
 	// Set characteristic length in number of bytes
-    attr_char_value.max_len = 1;
-    attr_char_value.init_len = 1;
-    uint8_t value[1] = { 0x12 };
-    attr_char_value.p_value = value;
+    attr_char_value.max_len = 2;
+    attr_char_value.init_len = 2;
+    attr_char_value.p_value = (uint8_t*)&value ;
+
+    // Store the original UUID so we can update the characteristic later via the API
+    p_our_service->uuids[char_count] = characteristic;
 
     // Add our new characteristic to the service
     err_code = sd_ble_gatts_characteristic_add(p_our_service->service_handle,
             &char_md,
             &attr_char_value,
-            &p_our_service->char_handles[char_index]);
+            &p_our_service->char_handles[char_count]);
     NRF_APP_ERROR_CHECK(err_code);
+    // We need to keep track of how many characteristics we have.
+    char_count += 1;
 }
 
 static void on_ble_evt(ble_os_t * p_our_service, ble_evt_t const * p_ble_evt)
@@ -356,32 +372,37 @@ static void on_ble_evt(ble_os_t * p_our_service, ble_evt_t const * p_ble_evt)
 static void on_ble_write(ble_os_t * p_our_service, ble_evt_t const * p_ble_evt)
 {
     // Buffer to hold received data. The data can only be at most 32 bit long.
-    uint8_t data;
+    uint16_t data;
 
     // Populate ble_gatts_value_t structure for received data and metadata.
     ble_gatts_value_t rx_data = {
-	.len = sizeof(uint8_t),
+	.len = sizeof(data),
 	.offset = 0,
-	.p_value = &data,
+	.p_value = (uint8_t*)&data,
     };
 
     const uint16_t handle = p_ble_evt->evt.gatts_evt.params.write.handle;
 
     // Check if write event is performed on our characteristic or CCCD
-    for (uint8_t i = 0; i < 2; i++) {
-	if (handle == p_our_service->char_handles[i].value_handle) {
-	    // Get data
-	    sd_ble_gatts_value_get(p_our_service->conn_handle, handle, &rx_data);
-	    DEBUG("Value changed h=%d: %d\n", handle, data);
+    for (uint8_t i = 0; i < char_count; i++) {
+	    if (handle == p_our_service->char_handles[i].value_handle) {
+	        // Get data
+	        sd_ble_gatts_value_get(p_our_service->conn_handle, handle, &rx_data);
+	        DEBUG("Value changed h=%d: %d\n", handle, data);
+            //TODO We need to differentiat between read and write characteristics.
+            msg_t m;
+            m.type = CHANGE_COLOR;
+            m.content.value = data;
+            msg_try_send(&m, send_pid);
+	        //if (data & 0x01) { LED2_TOGGLE; }
+	        //if (data & 0x02) { LED3_TOGGLE; }
 
-	    if (data & 0x01) { LED2_TOGGLE; }
-	    if (data & 0x02) { LED3_TOGGLE; }
-
-	} else if (handle == p_our_service->char_handles[i].cccd_handle) {
-	    DEBUG("CCCD for h=%d\n", handle);
-	    // Get data
-	    sd_ble_gatts_value_get(p_our_service->conn_handle, handle, &rx_data);
-	}
+	    }
+        else if (handle == p_our_service->char_handles[i].cccd_handle) {
+	        DEBUG("CCCD for h=%d\n", handle);
+	        // Get data
+	        sd_ble_gatts_value_get(p_our_service->conn_handle, handle, &rx_data);
+	    }
     }
 }
 
@@ -406,72 +427,44 @@ void ble_our_service_on_ble_evt(ble_os_t * p_our_service, ble_evt_t const * p_bl
     }
 }
 
-void acc_characteristic_update(ble_os_t *p_our_service, uint32_t *acc_value, uint8_t char_index)
+void acc_characteristic_update(ble_os_t *p_our_service, uint32_t *acc_value, uint16_t uuid)
 {
-    if (p_our_service->conn_handle != BLE_CONN_HANDLE_INVALID) {
-	uint16_t               len = 1;
-	ble_gatts_hvx_params_t hvx_params;
-	memset(&hvx_params, 0, sizeof(hvx_params));
+    // Find our UUID we want to update.
+    for (uint8_t i = 0; i < char_count; i++) {
+        if (p_our_service->uuids[i] == uuid) {
+            if (p_our_service->conn_handle != BLE_CONN_HANDLE_INVALID) {
+	            uint16_t               len = 2;
+	            ble_gatts_hvx_params_t hvx_params;
+	            memset(&hvx_params, 0, sizeof(hvx_params));
+	            hvx_params.handle = p_our_service->char_handles[i].value_handle;
+	            hvx_params.type   = BLE_GATT_HVX_NOTIFICATION;
+	            hvx_params.offset = 0;
+	            hvx_params.p_len  = &len;
+	            hvx_params.p_data = (uint8_t*)acc_value;
 
-	hvx_params.handle = p_our_service->char_handles[char_index].value_handle;
-	hvx_params.type   = BLE_GATT_HVX_NOTIFICATION;
-	hvx_params.offset = 0;
-	hvx_params.p_len  = &len;
-	hvx_params.p_data = (uint8_t*)acc_value;
-
-	sd_ble_gatts_hvx(p_our_service->conn_handle, &hvx_params);
-    } else {
-	uint16_t          len = 1;
-	ble_gatts_value_t tx_data;
-	tx_data.len     = len;
-	tx_data.offset  = 0;
-	tx_data.p_value = (uint8_t*)acc_value;
-	sd_ble_gatts_value_set(p_our_service->conn_handle,
-			       p_our_service->char_handles[char_index].value_handle,
-			       &tx_data);
+	            sd_ble_gatts_hvx(p_our_service->conn_handle, &hvx_params);
+            }
+            else {
+	            uint16_t          len = 2;
+	            ble_gatts_value_t tx_data;
+	            tx_data.len     = len;
+	            tx_data.offset  = 0;
+	            tx_data.p_value = (uint8_t*)acc_value;
+	            sd_ble_gatts_value_set(p_our_service->conn_handle,
+			                   p_our_service->char_handles[i].value_handle,
+			                   &tx_data);
+            }
+        }
     }
 }
 
 static void
 ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
 {
-    //ble_conn_params_on_ble_evt(p_ble_evt);
-    //on_ble_evt(&our_service, p_ble_evt);
-    //ble_our_service_on_ble_evt(&our_service, p_ble_evt);
-    msg_t m;
-    ble_evt_t *p_ble_evt_cpy;
-
-    p_ble_evt_cpy = (ble_evt_t *)malloc(sizeof(ble_evt_t));
-    *p_ble_evt_cpy = *p_ble_evt;
-
-    m.type = BLE_EVT_HANDLER_MESSAGE;
-    m.content.ptr = p_ble_evt_cpy;
-    // msg_try_send because we REALLY don't want to block in a random thread.
-    if (!msg_try_send(&m, ble_thread_pid)){
-        free(p_ble_evt_cpy);
-    }
-    //m.type = BLE_EVT_HANDLER_MESSAGE;
-    //DEBUG("Pointer in handler: %p\n",(void *)p_ble_evt);
-    //m.content.ptr = (void *)p_ble_evt;
-    //msg_try_send(&m, ble_thread_pid);
-}
-
-static void
-ble_thread_handle_event(ble_evt_t const * p_ble_evt)
-{
     on_ble_evt(&our_service, p_ble_evt);
     ble_our_service_on_ble_evt(&our_service, p_ble_evt);
 }
 
-/*
-static void
-ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
-{
-    DEBUG("Pointer in handler: %p\n",(void *)p_ble_evt);
-    on_ble_evt(&our_service, p_ble_evt);
-    ble_our_service_on_ble_evt(&our_service, p_ble_evt);
-}
-*/
 static msg_t rcv_queue[RCV_QUEUE_SIZE];
 
 void *ble_thread(void *arg)
@@ -494,31 +487,20 @@ void *ble_thread(void *arg)
     for (;;) {
 	    msg_receive(&m);
 	    // DEBUG("message received: type=%d\n", m.type);
-	    switch (m.type) {
-	    case UPDATE_ACC:
-	        acc_characteristic_update(&our_service, &m.content.value, 0);
-	        break;
-	    case UPDATE_ENERGY:
-	        acc_characteristic_update(&our_service, &m.content.value, 1);
-            break;
-        case BLE_EVT_HANDLER_MESSAGE:
-            ;
-            DEBUG("Pointer: %p\n",m.content.ptr);
-            ble_thread_handle_event((ble_evt_t const *)m.content.ptr);
-            free((event_context_t *)m.content.ptr);
-	        break;
-	    default:
-	        break;
-	    }
+        // We need to check if the message is about updating a characteristic.
+        for (uint8_t i = 0; i < char_count; i++) {
+            if (our_service.uuids[i] == m.type) {
+                acc_characteristic_update(&our_service, &m.content.value, m.type);
+            }
+        }
     }
 }
 
 static char ble_thread_stack[(THREAD_STACKSIZE_DEFAULT*2)];
-//static kernel_pid_t send_pid;
 
-//void neppible_init(ble_context_t *ble_context, kernel_pid_t thread_pid)
-kernel_pid_t neppible_init(void)
+void neppible_init(kernel_pid_t main_pid)
 {
+    send_pid = main_pid;
     ble_init(&ble_context);
     gap_params_init(&ble_context);
     gatt_init();
@@ -528,7 +510,6 @@ kernel_pid_t neppible_init(void)
     ble_thread_pid = thread_create(ble_thread_stack, sizeof(ble_thread_stack),
                    BLE_THREAD_PRIO, 0/*THREAD_CREATE_STACKTEST*/,
                    ble_thread, NULL, "BLE");
-    return ble_thread_pid;
 }
 
 void neppible_start(void)
@@ -537,6 +518,24 @@ void neppible_start(void)
     start_message.type = BLE_THREAD_START;
     msg_send(&start_message, ble_thread_pid);
 }
+//TODO Error checking?
+uint8_t neppible_add_char(uint16_t UUID, char_descr_t descriptions, uint16_t initial_value)
+{
+    // TODO, integrate description configuration from outside the API.
+    if (descriptions.data) {
+    ;
+    }
+    if (char_count >= BLE_GATT_DB_MAX_CHARS){
+        return 0;
+    }
+    add_characteristic(&our_service, UUID, initial_value);
+    return 1;
+}
 
-
-
+void neppible_update_char(uint16_t UUID, uint16_t value)
+{
+    msg_t m;
+    m.type = UUID;
+    m.content.value = value;
+    msg_try_send(&m, ble_thread_pid);
+}
