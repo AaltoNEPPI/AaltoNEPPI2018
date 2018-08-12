@@ -59,7 +59,6 @@ static void *led_thread(void *arg)
 
     /* NOTREACHED */
 
-    return NULL;
 }
 
 void leds_init(void)
