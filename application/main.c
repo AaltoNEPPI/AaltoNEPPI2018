@@ -13,6 +13,7 @@
 #include "color.h"
 #include "xtimer.h"
 #include "neppible.h"
+#include "periph/gpio.h"
 
 #define MAIN_RCV_QUEUE_SIZE  (8)
 #define BLE_UUID_CONTROLS_CHARACTERISTIC                 0xBBD0

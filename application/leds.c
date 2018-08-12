@@ -32,7 +32,7 @@ void leds_set_color(color_rgba_t led_color)
 }
 
 
-static void *led_thread(void *arg)
+NORETURN static void *led_thread(void *arg)
 {
     (void) arg;
     //initialize the message queue
@@ -56,9 +56,7 @@ static void *led_thread(void *arg)
         //Fire it off! The drivers will do the rest
         apa102_load_rgba(&dev,leds);
     }
-
     /* NOTREACHED */
-
 }
 
 void leds_init(void)
