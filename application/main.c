@@ -1,4 +1,7 @@
-/* Copyright Ville Hiltunen 2018 <hiltunenvillej@gmail.com>
+/*
+ * This is a test file for AaltoNeppi2018 LED API.
+ *
+ * Copyright Ville Hiltunen 2018 <hiltunenvillej@gmail.com>
  *
  * All code here is open source
  */
@@ -17,21 +20,21 @@ int main(int ac, char **av)
     leds_init();
     LED2_TOGGLE;
     color_rgba_t led_color = {
-        .color = { .r = 255, .g = 0, .b = 0},
-        .alpha = 100
+        .color = { .r = 255, .g = 0, .b = 0, },
+        .alpha = 100,
     };
     //Change the color at start to red.
     leds_set_color(led_color);
     //Slowly increase blueness
     uint8_t b = 0;
-    for (;;){
-        xtimer_sleep(1);
+    for (;;) {
         b = b + 10;
-        if (b > 240){
+        if (b > 240) {
             b = 0;
         }
         led_color.color.b = b;
         leds_set_color(led_color);
+        xtimer_sleep(1);
     }
-    return 0;
+    /* NOTREACHED */
 }

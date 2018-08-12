@@ -6,8 +6,6 @@
 #define LEDDRIVERH
 
 #include "thread.h"
-#include "apa102.h"
-#include "apa102_params.h"
 #include "xtimer.h"
 #include "color.h"
 
@@ -16,10 +14,14 @@
 extern "C" {
 #endif
 
-//Takes in an array of colors with alpha
+/*
+ * Changes the color of the LEDS to match led_color.
+ */
 void leds_set_color(color_rgba_t led_color);
 
-//Initializes the led thread
+/*
+ *Initializes the led thread and the underlying drivers.
+ */
 void leds_init(void);
 
 #ifdef __cplusplus
