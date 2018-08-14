@@ -105,4 +105,5 @@ int main(int ac, char **av)
         xtimer_sleep(1);
     }
     /* NOTREACHED */
+    return 0;
 }

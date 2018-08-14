@@ -30,27 +30,27 @@
 #include "debug.h"
 #include "ble_neppi.h"
 
-//#define LED_CONNECTED_ON  LED1_ON
-//#define LED_CONNECTED_OFF LED1_OFF
+//#define LED_CONNECTED_ON  LED2_ON
+//#define LED_CONNECTED_OFF LED2_OFF
 
 /**
- * TODO Sort these things:
+ * Maximum number of characteristics a service can have. This can
+ * come from the sdk ble headers.
  */
-#define BLE_THREAD_START 555
-
-#define BLE_RCV_QUEUE_SIZE  (8)
-
 #ifndef BLE_GATT_DB_MAX_CHARS
 #define BLE_GATT_DB_MAX_CHARS 6
 #endif
-
-static uint8_t char_count = 0;
 
 /**
  * RIOT thread priority for the BLE handler.
  * We use the same thread priority as for TCP/IP network interfaces.
  */
 #define BLE_THREAD_PRIO (GNRC_NETIF_PRIO)
+
+/**
+ * BLE thread message queue size
+ */
+#define BLE_RCV_QUEUE_SIZE  (8)
 
 /**
  * Advertised device name
@@ -113,7 +113,7 @@ static uint8_t char_count = 0;
  * Messages from the BLE thread to the main thread
  *************/
 
-// Currently empty
+#define BLE_THREAD_START 555
 
 /*************
  * UUIDs used for the service and characteristics
@@ -129,6 +129,11 @@ static uint8_t char_count = 0;
 
 // Just a random, but recognizable value for the service
 #define BLE_UUID_OUR_SERVICE                             0xABDC
+
+/**
+ * Variable to keep track of number of characteristics.
+ */
+static uint8_t char_count = 0;
 
 typedef struct {
     /**
@@ -370,8 +375,8 @@ static void on_ble_evt(ble_os_t * p_our_service, ble_evt_t const * p_ble_evt)
 
 /**
  * This function is how we respond to the softdevice event when a client
- * writes on our server. Since this function is currently called in an
- * interrupt context, it is only thread safe on the assuption that
+ * writes on our server. This function is currently called in an
+ * interrupt context and is only thread safe on the assuption that
  * no more characteristics are added after ble thread operation starts.
  * This means after ble_neppi_init() has been called but before ble_neppi_start()
  */
