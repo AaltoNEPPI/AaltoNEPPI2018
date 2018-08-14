@@ -101,7 +101,6 @@ int main(int ac, char **av)
             b = 0;
         }
         led_color.color.b = b;
-        led_color.color.g = g;
         leds_set_color(led_color);
         xtimer_sleep(1);
     }
