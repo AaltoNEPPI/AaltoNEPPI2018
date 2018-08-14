@@ -401,7 +401,7 @@ static void on_ble_write(ble_os_t * p_our_service, ble_evt_t const * p_ble_evt)
 	        DEBUG("Value changed h=%d: %d\n", handle, data);
             //TODO We need to differentiat between read and write characteristics.
             msg_t m;
-            m.type = CHANGE_COLOR;
+            m.type = p_our_service->uuids[i];
             m.content.value = ntohs(data);
             msg_try_send(&m, send_pid);
 	    }
