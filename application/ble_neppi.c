@@ -30,8 +30,8 @@
 #include "debug.h"
 #include "ble_neppi.h"
 
-//#define LED_CONNECTED_ON  LED2_ON
-//#define LED_CONNECTED_OFF LED2_OFF
+#define LED_CONNECTED_ON  LED1_ON
+#define LED_CONNECTED_OFF LED1_OFF
 
 /**
  * Maximum number of characteristics a service can have. This can
@@ -113,8 +113,9 @@
  * Messages from the BLE thread to the main thread
  *************/
 
-#define BLE_THREAD_START 555
-
+#define BLE_THREAD_START    555
+#define BLE_DISCONNECT_MSG  444
+#define BLE_CONNECT_MSG     333
 /*************
  * UUIDs used for the service and characteristics
  *************/
@@ -345,31 +346,27 @@ static void on_ble_evt(ble_os_t * p_our_service, ble_evt_t const * p_ble_evt)
     ret_code_t err_code;
 
     switch (p_ble_evt->header.evt_id) {
-
-        case BLE_GATTS_EVT_SYS_ATTR_MISSING:
-	        // No system attributes have been stored.
-	        err_code = sd_ble_gatts_sys_attr_set(our_service.conn_handle, NULL, 0, 0);
-	        NRF_APP_ERROR_CHECK(err_code);
-	        break;
-
-        case BLE_GATTC_EVT_TIMEOUT:
-	        // Disconnect on GATT Client timeout event.
-	        DEBUG("GATT Client Timeout.\n");
-	        err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gattc_evt.conn_handle,
-					        BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
-	        NRF_APP_ERROR_CHECK(err_code);
-	        break;
-
-            case BLE_GATTS_EVT_TIMEOUT:
-	        // Disconnect on GATT Server timeout event.
-	        DEBUG("GATT Server Timeout.\n");
-	        err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gatts_evt.conn_handle,
-					        BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
-	        NRF_APP_ERROR_CHECK(err_code);
-	        break;
-
-            default:
-	        break;
+    case BLE_GATTS_EVT_SYS_ATTR_MISSING:
+	    // No system attributes have been stored.
+	    err_code = sd_ble_gatts_sys_attr_set(our_service.conn_handle, NULL, 0, 0);
+	    NRF_APP_ERROR_CHECK(err_code);
+	    break;
+    case BLE_GATTC_EVT_TIMEOUT:
+	    // Disconnect on GATT Client timeout event.
+	    DEBUG("GATT Client Timeout.\n");
+	    err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gattc_evt.conn_handle,
+                    BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
+	    NRF_APP_ERROR_CHECK(err_code);
+	    break;
+    case BLE_GATTS_EVT_TIMEOUT:
+	    // Disconnect on GATT Server timeout event.
+	    DEBUG("GATT Server Timeout.\n");
+	    err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gatts_evt.conn_handle,
+					   BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
+	    NRF_APP_ERROR_CHECK(err_code);
+	    break;
+    default:
+	    break;
     }
 }
 
@@ -421,19 +418,26 @@ void ble_our_service_on_ble_evt(ble_os_t * p_our_service, ble_evt_t const * p_bl
     // Implement switch case handling BLE events related to our service.
     switch (p_ble_evt->header.evt_id) {
     case BLE_GAP_EVT_CONNECTED:
-	LED1_TOGGLE;
-	p_our_service->conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
-	break;
+        ;
+        msg_t m1;
+        m1.type = BLE_CONNECT_MSG;
+        m1.content.value = p_ble_evt->evt.gap_evt.conn_handle;
+        msg_try_send(&m1, ble_thread_pid);
+	    break;
     case BLE_GAP_EVT_DISCONNECTED:
-	LED1_TOGGLE;
-	p_our_service->conn_handle = BLE_CONN_HANDLE_INVALID;
-	break;
+        ;
+        msg_t m2;
+        m2.type = BLE_DISCONNECT_MSG;
+        m2.content.value = p_ble_evt->evt.gap_evt.conn_handle;
+        msg_try_send(&m2, ble_thread_pid);
+	    p_our_service->conn_handle = BLE_CONN_HANDLE_INVALID;
+	    break;
     case BLE_GATTS_EVT_WRITE:
-	on_ble_write(p_our_service, p_ble_evt);
-	break;
+	    on_ble_write(p_our_service, p_ble_evt);
+	    break;
     default:
 	// No implementation needed.
-	break;
+	    break;
     }
 }
 /**
@@ -507,6 +511,18 @@ NORETURN static void *ble_thread(void *arg)
             if (our_service.uuids[i] == m.type) {
                 characteristic_update(&our_service, &m.content.value, m.type);
             }
+        }
+        switch (m.type) {
+        case BLE_CONNECT_MSG:
+            LED_CONNECTED_ON;
+            our_service.conn_handle = m.content.value;
+            break;
+        case BLE_DISCONNECT_MSG:
+            LED_CONNECTED_OFF;
+            our_service.conn_handle = BLE_CONN_HANDLE_INVALID;
+            break;
+        default:
+            break;
         }
     }
 }
