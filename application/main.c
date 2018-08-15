@@ -1,5 +1,6 @@
 /*
- * This is a test file for AaltoNeppi2018 BLE API. It changes 
+ * This is a test file for AaltoNeppi2018 BLE API. It changes LED color
+ * and intensity according to messages it receives from a BLE client.
  *
  * Copyright Ville Hiltunen 2018 <hiltunenvillej@gmail.com>
  *
@@ -8,7 +9,6 @@
 #include <stdio.h>
 #include <string.h>
 
-//Doesn't seem to work here?
 //#define ENABLE_DEBUG (1)
 //#include "debug.h"
 #include "thread.h"
@@ -86,7 +86,6 @@ int main(int ac, char **av)
 
     // Add characteristics. We use one to send, two to receive.
     //TODO test with more than 6 characteristics.
-    //TODO prevent same UUID from being used twice.
     char_descr_t desc;
     ble_neppi_add_char(BLE_UUID_CONTROLS_CHARACTERISTIC, desc, 0);
     ble_neppi_add_char(BLE_UUID_H,desc,13);
