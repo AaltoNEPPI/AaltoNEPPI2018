@@ -16,6 +16,7 @@
 #include "xtimer.h"
 #include "ble_neppi.h"
 #include "periph/gpio.h"
+#include "mpu_neppi.h"
 
 #define MAIN_RCV_QUEUE_SIZE                 (8)
 #define BLE_UUID_CONTROLS_CHARACTERISTIC    0xABBB
@@ -52,7 +53,7 @@ int main(int ac, char **av)
 {
     msg_init_queue(main_rcv_queue, MAIN_RCV_QUEUE_SIZE);
     kernel_pid_t main_pid = thread_getpid();
-    xtimer_sleep(2);
+    xtimer_sleep(1);
     // Initialize buttons
     gpio_init(BTN0_PIN, BTN0_MODE);
     gpio_init(BTN1_PIN, BTN1_MODE);
@@ -60,7 +61,7 @@ int main(int ac, char **av)
     gpio_init(BTN3_PIN, BTN3_MODE);
     // Initialize LED API. This starts a new thread.
     leds_init(main_pid);
-    xtimer_sleep(2);
+    xtimer_sleep(1);
     LED0_TOGGLE;
     color_rgba_t led_color = {
         .color = { .r = 255, .g = 0, .b = 0, },
@@ -71,27 +72,33 @@ int main(int ac, char **av)
     // Initialize BLE. The BLE thread needs main PID to know where to send
     // messages.
     xtimer_sleep(1);
-    ble_neppi_init(main_pid);
+    kernel_pid_t ble_pid = ble_neppi_init(main_pid);
 
     // Add characteristics. We use one to send, two to receive.
     //TODO test with more than 6 characteristics.
-    char_descr_t desc = {
+    char_descr_t mpu_desc = {
+        .char_len = 6,
+    };
+    char_descr_t generic_desc = {
         .char_len = 4,
     };
-    ble_neppi_add_char(BLE_UUID_CONTROLS_CHARACTERISTIC, desc, 0);
-    ble_neppi_add_char(BLE_UUID_H,desc,13);
-    ble_neppi_add_char(BLE_UUID_V,desc,15);
-    ble_neppi_add_char(BLE_UUID_CYCLING,desc,0);
-    ble_neppi_add_char(BLE_UUID_ACTIVE,desc,0);
+    ble_neppi_add_char(BLE_UUID_CONTROLS_CHARACTERISTIC, mpu_desc, 0);
+    ble_neppi_add_char(BLE_UUID_H, generic_desc, 13);
+    ble_neppi_add_char(BLE_UUID_V, generic_desc, 15);
+    ble_neppi_add_char(BLE_UUID_CYCLING, generic_desc, 0);
+    ble_neppi_add_char(BLE_UUID_ACTIVE, generic_desc, 0);
+    // Initialize the MPU9250.
+    mpu_neppi_init(main_pid, ble_pid, BLE_UUID_CONTROLS_CHARACTERISTIC);
     // Start the ble execution.
     ble_neppi_start();
-
+    // Start the MPU execution.
+    mpu_neppi_start();
     // Switch to main execution loop.
     msg_t main_message;
     //uint8_t state = 0;
     for (;;) {
-        int queue_count = msg_avail();
-        printf("Queue had: %d\n", queue_count);
+        //int queue_count = msg_avail();
+        //printf("Queue had: %d\n", queue_count);
         msg_try_receive(&main_message);
         switch (main_message.type) {
             case BLE_UUID_H:

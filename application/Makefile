@@ -53,7 +53,7 @@ USEMODULE += xtimer
 USEMODULE += periph_uart
 USEMODULE += apa102
 USEMODULE += color
-#USEMODULE += mpu9250
+USEMODULE += mpu9250
 
 # Packages to include
 

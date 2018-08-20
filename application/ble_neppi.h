@@ -23,7 +23,7 @@ typedef struct {
 /**
  * Initialization function for the BLE API.
  */
-void ble_neppi_init(kernel_pid_t);
+kernel_pid_t ble_neppi_init(kernel_pid_t);
 /**
  * Function to add characteristics. Call this only after ble_neppi_init()
  * and before ble_neppi_start()

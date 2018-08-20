@@ -18,13 +18,11 @@
 #include "nrf_sdh_ble.h"
 #include "app_error.h"
 #include "net/gnrc/netif.h"
-
 #include "ble-core.h"
-
 #include "xtimer.h"
 #include "board.h"
-
 #include "periph/gpio.h"
+#include "mpu_neppi.h"
 
 #define ENABLE_DEBUG (1)
 #include "debug.h"
@@ -510,6 +508,8 @@ NORETURN static void *ble_thread(void *arg)
     }
     // Start execution.
     ble_advertising_start(&ble_context);
+    static uint8_t gyro_data[6];
+    memset(gyro_data, 0, 6);
     for (;;) {
 	    msg_receive(&m);
 	    // DEBUG("message received: type=%d\n", m.type);
@@ -520,16 +520,29 @@ NORETURN static void *ble_thread(void *arg)
             }
         }
         switch (m.type) {
-        case BLE_CONNECT_MSG:
-            LED_CONNECTED_ON;
-            our_service.conn_handle = m.content.value;
-            break;
-        case BLE_DISCONNECT_MSG:
-            LED_CONNECTED_OFF;
-            our_service.conn_handle = BLE_CONN_HANDLE_INVALID;
-            break;
-        default:
-            break;
+            case MESSAGE_LONG_SEND_X:
+                *((uint16_t *)&gyro_data[0]) = (uint16_t)m.content.value;
+                break;
+            case MESSAGE_LONG_SEND_Y:
+                *((uint16_t *)&gyro_data[2]) = (uint16_t)m.content.value;
+                break;
+            case MESSAGE_LONG_SEND_Z:
+                *((uint16_t *)&gyro_data[4]) = (uint16_t)m.content.value;
+                break;
+            case MESSAGE_LONG_SEND_UUID:
+                characteristic_update(&our_service, gyro_data, (uint16_t)m.content.value);
+                memset(gyro_data, 0, 6);
+                break;
+            case BLE_CONNECT_MSG:
+                LED_CONNECTED_ON;
+                our_service.conn_handle = m.content.value;
+                break;
+            case BLE_DISCONNECT_MSG:
+                LED_CONNECTED_OFF;
+                our_service.conn_handle = BLE_CONN_HANDLE_INVALID;
+                break;
+            default:
+                break;
         }
     }
 }
@@ -538,7 +551,7 @@ static char ble_thread_stack[(THREAD_STACKSIZE_DEFAULT*2)];
 /*
  * API function to initialize BLE and the thread that runs it.
  */
-void ble_neppi_init(kernel_pid_t main_pid)
+kernel_pid_t ble_neppi_init(kernel_pid_t main_pid)
 {
     send_pid = main_pid;
     ble_init(&ble_context);
@@ -550,6 +563,7 @@ void ble_neppi_init(kernel_pid_t main_pid)
     ble_thread_pid = thread_create(ble_thread_stack, sizeof(ble_thread_stack),
                    BLE_THREAD_PRIO, 0/*THREAD_CREATE_STACKTEST*/,
                    ble_thread, NULL, "BLE");
+    return ble_thread_pid;
 }
 /**
  * API function to start the BLE thread after initialization.
