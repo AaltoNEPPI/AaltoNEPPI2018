@@ -17,7 +17,7 @@ extern "C" {
  * Struct to hold characteristic creation data.
  */
 typedef struct {
-    int data;
+    uint8_t char_len;
 } char_descr_t;
 
 /**

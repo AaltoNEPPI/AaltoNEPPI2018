@@ -37,9 +37,9 @@
  * Maximum number of characteristics a service can have. This can
  * come from the sdk ble headers.
  */
-#ifndef BLE_GATT_DB_MAX_CHARS
+//#ifndef BLE_GATT_DB_MAX_CHARS
 #define BLE_GATT_DB_MAX_CHARS 6
-#endif
+//#endif
 
 /**
  * RIOT thread priority for the BLE handler.
@@ -154,6 +154,10 @@ typedef struct {
      * short UUID of the characteristic. This is not from the BLE stack.
      */
     uint16_t uuids[BLE_GATT_DB_MAX_CHARS];
+    /**
+     * Characteristic length. Supplied by user.
+     */
+    uint8_t char_lens[BLE_GATT_DB_MAX_CHARS];
 } ble_os_t;
 
 static ble_os_t our_service;
@@ -170,7 +174,7 @@ static kernel_pid_t ble_thread_pid;
  */
 
 static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context);
-static void add_characteristic(ble_os_t* p_our_service, uint16_t  characteristic, uint16_t initial_value);
+//static void add_characteristic(ble_os_t* p_our_service, uint16_t  characteristic, uint16_t initial_value);
 
 
 /**
@@ -276,8 +280,9 @@ static void gatt_init(void)
 }
 /**
  * Internal function to add a characteristic.
+ * TODO: Initial value is only 16 bit, while value size can be larger.
  */
-static void add_characteristic(ble_os_t* p_our_service, uint16_t  characteristic, uint16_t value)
+static void add_characteristic(ble_os_t* p_our_service, uint16_t  characteristic, uint16_t value, uint8_t char_len)
 {
     // Before we do anything, we need to be sure that we're not full.
     assert(char_count < BLE_GATT_DB_MAX_CHARS);
@@ -322,8 +327,8 @@ static void add_characteristic(ble_os_t* p_our_service, uint16_t  characteristic
     attr_char_value.p_attr_md = &attr_md;
 
 	// Set characteristic length in number of bytes
-    attr_char_value.max_len = 2;
-    attr_char_value.init_len = 2;
+    attr_char_value.max_len = char_len;
+    attr_char_value.init_len = sizeof(value);
     attr_char_value.p_value = (uint8_t*)&value ;
 
     // Store the original UUID so we can update the characteristic later via the API
@@ -335,6 +340,8 @@ static void add_characteristic(ble_os_t* p_our_service, uint16_t  characteristic
             &attr_char_value,
             &p_our_service->char_handles[char_count]);
     NRF_APP_ERROR_CHECK(err_code);
+    // Store the characteristic length for updating later
+    p_our_service->char_lens[char_count] = char_len;
     // We need to keep track of how many characteristics we currently have.
     char_count += 1;
 }
@@ -443,26 +450,26 @@ void ble_our_service_on_ble_evt(ble_os_t * p_our_service, ble_evt_t const * p_bl
 /**
  * Function to update a characteristic.
  */
-static void characteristic_update(ble_os_t *p_our_service, uint32_t *acc_value, uint16_t uuid)
+static void characteristic_update(ble_os_t *p_our_service, uint8_t *acc_value, uint16_t uuid)
 {
     // Find our UUID we want to update.
     for (uint8_t i = 0; i < char_count; i++) {
         if (p_our_service->uuids[i] == uuid) {
             if (p_our_service->conn_handle != BLE_CONN_HANDLE_INVALID) {
-	            uint16_t               len = 2;
+	            uint16_t               len = p_our_service->char_lens[i];
 	            ble_gatts_hvx_params_t hvx_params;
 	            memset(&hvx_params, 0, sizeof(hvx_params));
 	            hvx_params.handle = p_our_service->char_handles[i].value_handle;
 	            hvx_params.type   = BLE_GATT_HVX_NOTIFICATION;
 	            hvx_params.offset = 0;
 	            hvx_params.p_len  = &len;
-	            hvx_params.p_data = (uint8_t*)acc_value;
+	            hvx_params.p_data = acc_value;
 
 	            sd_ble_gatts_hvx(p_our_service->conn_handle, &hvx_params);
             }
             else {
             // The procedure to change a value without active connection.
-	            uint16_t          len = 2;
+	            uint16_t          len = p_our_service->char_lens[i];
 	            ble_gatts_value_t tx_data;
 	            tx_data.len     = len;
 	            tx_data.offset  = 0;
@@ -491,7 +498,7 @@ static msg_t rcv_queue[BLE_RCV_QUEUE_SIZE];
 NORETURN static void *ble_thread(void *arg)
 {
     (void)arg;
-    DEBUG("2nd thread started, pid: %" PRIkernel_pid "\n", thread_getpid());
+    DEBUG("BLE thread started, pid: %" PRIkernel_pid "\n", thread_getpid());
     // Wait until start message has been sent.
     msg_t m;
     msg_init_queue(rcv_queue, BLE_RCV_QUEUE_SIZE);
@@ -509,7 +516,7 @@ NORETURN static void *ble_thread(void *arg)
         // We need to check if the message is about updating a characteristic.
         for (uint8_t i = 0; i < char_count; i++) {
             if (our_service.uuids[i] == m.type) {
-                characteristic_update(&our_service, &m.content.value, m.type);
+                characteristic_update(&our_service, (uint8_t *)&m.content.value, m.type);
             }
         }
         switch (m.type) {
@@ -561,11 +568,10 @@ void ble_neppi_start(void)
 uint8_t ble_neppi_add_char(uint16_t UUID, char_descr_t descriptions, uint16_t initial_value)
 {
     // TODO, integrate description configuration from outside the API.
-    (void)descriptions;
     if (char_count >= BLE_GATT_DB_MAX_CHARS){
         return 0;
     }
-    add_characteristic(&our_service, UUID, initial_value);
+    add_characteristic(&our_service, UUID, initial_value, descriptions.char_len);
     return 1;
 }
 /*

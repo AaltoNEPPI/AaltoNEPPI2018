@@ -75,7 +75,9 @@ int main(int ac, char **av)
 
     // Add characteristics. We use one to send, two to receive.
     //TODO test with more than 6 characteristics.
-    char_descr_t desc;
+    char_descr_t desc = {
+        .char_len = 4,
+    };
     ble_neppi_add_char(BLE_UUID_CONTROLS_CHARACTERISTIC, desc, 0);
     ble_neppi_add_char(BLE_UUID_H,desc,13);
     ble_neppi_add_char(BLE_UUID_V,desc,15);
