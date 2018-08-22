@@ -69,7 +69,7 @@ int main(int ac, char **av)
     gpio_init(BTN0_PIN, BTN0_MODE);
     //int failure = adc_init(NRF52_AIN5);
     //printf("Did we fail? %d\n", failure);
-    xtimer_sleep(1);
+    //xtimer_sleep(1);
     // Initialize BLE. The BLE thread needs main PID to know where to send
     // messages.
     kernel_pid_t ble_pid = ble_neppi_init(main_pid);

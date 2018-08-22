@@ -276,7 +276,7 @@ void mpu_neppi_init(kernel_pid_t main, kernel_pid_t target, uint16_t short_uuid)
     }
     set_sample_rates();
     mpu_thread_pid = thread_create(mpu_thread_stack, sizeof(mpu_thread_stack),
-                   THREAD_PRIORITY_MAIN + 1, 0/*THREAD_CREATE_STACKTEST*/,
+                   THREAD_PRIORITY_MAIN - 2, 0/*THREAD_CREATE_STACKTEST*/,
                    mpu_thread, NULL, "MPU");
 }
 /**
