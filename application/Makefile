@@ -54,6 +54,7 @@ USEMODULE += periph_uart
 USEMODULE += apa102
 USEMODULE += color
 USEMODULE += mpu9250
+#USEMODULE += periph_adc
 
 # Packages to include
 

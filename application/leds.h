@@ -1,4 +1,5 @@
-/* Copyright Ville Hiltunen 2018 <hiltunenvillej@gmail.com>
+/**
+ * Made by Ville Hiltunen 2018 <hiltunenvillej@gmail.com>
  *
  * All code is public domain here.
  */

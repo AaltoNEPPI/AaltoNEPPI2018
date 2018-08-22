@@ -1,11 +1,16 @@
+
 #ifndef MPUDRIVERH
 #define MPUDRIVERH
 
+#define MESSAGE_MPU_SLEEP           746
+#define MESSAGE_MPU_ACTIVE          745
 #define MESSAGE_MPU_THREAD_START    744
-#define MESSAGE_LONG_SEND_X          743
-#define MESSAGE_LONG_SEND_Y          742
-#define MESSAGE_LONG_SEND_Z          741
-#define MESSAGE_LONG_SEND_UUID       740
+#define MESSAGE_LONG_SEND_1         743
+#define MESSAGE_LONG_SEND_2         742
+#define MESSAGE_LONG_SEND_3         741
+#define MESSAGE_LONG_SEND_4         740
+#define MESSAGE_LONG_SEND_5         739
+
 #include "mpu9250.h"
 #include "mpu9250_params.h"
 
@@ -15,6 +20,8 @@ extern "C" {
 
 /**
  * Initializes the MPU9250 drivers and a thread to run them.
+ * The uint16_t short_uuid is the target thread that you want to receive
+ * the MPU data.
  */
 void mpu_neppi_init(kernel_pid_t main, kernel_pid_t target, uint16_t short_uuid);
 

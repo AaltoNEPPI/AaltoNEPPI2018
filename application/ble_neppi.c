@@ -278,9 +278,9 @@ static void gatt_init(void)
 }
 /**
  * Internal function to add a characteristic.
- * TODO: Initial value is only 16 bit, while value size can be larger.
+ * TODO: Initial value is only 8 bit, while value size can be larger.
  */
-static void add_characteristic(ble_os_t* p_our_service, uint16_t  characteristic, uint16_t value, uint8_t char_len)
+static void add_characteristic(ble_os_t* p_our_service, uint16_t  characteristic, uint8_t value, uint8_t char_len)
 {
     // Before we do anything, we need to be sure that we're not full.
     assert(char_count < BLE_GATT_DB_MAX_CHARS);
@@ -385,13 +385,13 @@ static void on_ble_evt(ble_os_t * p_our_service, ble_evt_t const * p_ble_evt)
 static void on_ble_write(ble_os_t * p_our_service, ble_evt_t const * p_ble_evt)
 {
     // Buffer to hold received data. The data can only be at most 32 bit long.
-    uint16_t data;
+    uint32_t data = 0;
 
     // Populate ble_gatts_value_t structure for received data and metadata.
     ble_gatts_value_t rx_data = {
 	.len = sizeof(data),
 	.offset = 0,
-	.p_value = (uint8_t*)&data,
+    .p_value = (uint8_t *)&data,
     };
 
     const uint16_t handle = p_ble_evt->evt.gatts_evt.params.write.handle;
@@ -400,11 +400,10 @@ static void on_ble_write(ble_os_t * p_our_service, ble_evt_t const * p_ble_evt)
 	    if (handle == p_our_service->char_handles[i].value_handle) {
 	        // Get data
 	        sd_ble_gatts_value_get(p_our_service->conn_handle, handle, &rx_data);
-	        DEBUG("Value changed h=%d: %d\n", handle, data);
-            //TODO We need to differentiat between read and write characteristics.
+	        DEBUG("Value changed h=%d: %u\n", handle, data);
             msg_t m;
             m.type = p_our_service->uuids[i];
-            m.content.value = ntohs(data);
+            m.content.value = data;
             msg_try_send(&m, send_pid);
 	    }
         else if (handle == p_our_service->char_handles[i].cccd_handle) {
@@ -508,31 +507,60 @@ NORETURN static void *ble_thread(void *arg)
     }
     // Start execution.
     ble_advertising_start(&ble_context);
-    static uint8_t gyro_data[6];
-    memset(gyro_data, 0, 6);
+    static uint8_t mpu_data[18];
+    memset(mpu_data, 0, sizeof(mpu_data));
     for (;;) {
 	    msg_receive(&m);
 	    // DEBUG("message received: type=%d\n", m.type);
-        // We need to check if the message is about updating a characteristic.
+        // Check if the message is about updating a characteristic.
         for (uint8_t i = 0; i < char_count; i++) {
             if (our_service.uuids[i] == m.type) {
                 characteristic_update(&our_service, (uint8_t *)&m.content.value, m.type);
             }
         }
         switch (m.type) {
-            case MESSAGE_LONG_SEND_X:
-                *((uint16_t *)&gyro_data[0]) = (uint16_t)m.content.value;
+            /*  Little endian send */
+            
+            case MESSAGE_LONG_SEND_1:
+                *((uint32_t *)&mpu_data[0]) = m.content.value;
                 break;
-            case MESSAGE_LONG_SEND_Y:
-                *((uint16_t *)&gyro_data[2]) = (uint16_t)m.content.value;
+            case MESSAGE_LONG_SEND_2:
+                *((uint32_t *)&mpu_data[4]) = m.content.value;
                 break;
-            case MESSAGE_LONG_SEND_Z:
-                *((uint16_t *)&gyro_data[4]) = (uint16_t)m.content.value;
+            case MESSAGE_LONG_SEND_3:
+                *((uint32_t *)&mpu_data[8]) = m.content.value;
                 break;
-            case MESSAGE_LONG_SEND_UUID:
-                characteristic_update(&our_service, gyro_data, (uint16_t)m.content.value);
-                memset(gyro_data, 0, 6);
+            case MESSAGE_LONG_SEND_4:
+                *((uint32_t *)&mpu_data[12]) = m.content.value;
                 break;
+            case MESSAGE_LONG_SEND_5:
+                *((uint16_t *)&mpu_data[16]) = (uint16_t)m.content.value;
+                uint16_t temp_uuid = (uint16_t)(m.content.value >> 16);
+                characteristic_update(&our_service, mpu_data, temp_uuid);
+                memset(mpu_data, 0, sizeof(mpu_data));
+                break;
+            
+            /*  Big endian send */
+            /*
+            case MESSAGE_LONG_SEND_1:
+                *((uint32_t *)&mpu_data[14]) = htonl(m.content.value);
+                break;
+            case MESSAGE_LONG_SEND_2:
+                *((uint32_t *)&mpu_data[10]) = htonl(m.content.value);
+                break;
+            case MESSAGE_LONG_SEND_3:
+                *((uint32_t *)&mpu_data[6]) = htonl(m.content.value);
+                break;
+            case MESSAGE_LONG_SEND_4:
+                *((uint32_t *)&mpu_data[2]) = htonl(m.content.value);
+                break;
+            case MESSAGE_LONG_SEND_5:
+                *((uint16_t *)&mpu_data[0]) = htons((uint16_t)m.content.value);
+                uint16_t temp_uuid = (uint16_t)(m.content.value >> 16);
+                characteristic_update(&our_service, mpu_data, temp_uuid);
+                memset(mpu_data, 0, sizeof(mpu_data));
+                break;
+            */
             case BLE_CONNECT_MSG:
                 LED_CONNECTED_ON;
                 our_service.conn_handle = m.content.value;
@@ -579,7 +607,7 @@ void ble_neppi_start(void)
  * used after initialization, but before thread has been started.
  */
 //TODO Error checking?
-uint8_t ble_neppi_add_char(uint16_t UUID, char_descr_t descriptions, uint16_t initial_value)
+uint8_t ble_neppi_add_char(uint16_t UUID, char_descr_t descriptions, uint8_t initial_value)
 {
     // TODO, integrate description configuration from outside the API.
     if (char_count >= BLE_GATT_DB_MAX_CHARS){
@@ -591,7 +619,7 @@ uint8_t ble_neppi_add_char(uint16_t UUID, char_descr_t descriptions, uint16_t in
 /*
  * API function to update an added characteristic.
  */
-void ble_neppi_update_char(uint16_t UUID, uint16_t value)
+void ble_neppi_update_char(uint16_t UUID, uint32_t value)
 {
     msg_t m;
     m.type = UUID;

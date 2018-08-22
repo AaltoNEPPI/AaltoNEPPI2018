@@ -2,7 +2,7 @@
  * This is the LED driver API for AaltoNeppi2018. It abstracts away RIOT APA102 LED strip
  * drivers.
  *
- * Copyright Ville Hiltunen 2018 <hiltunenvillej@gmail.com>
+ * Made by Ville Hiltunen 2018 <hiltunenvillej@gmail.com>
  *
  * All code here is public domain.
  */
@@ -12,10 +12,17 @@
 #include "leds.h"
 #include "apa102.h"
 #include "apa102_params.h"
+#define ENABLE_DEBUG                (1)
+#include "debug.h"
 
-#define LEDS_MESSAGE_QUEUE_SIZE     8
-#define LED_BRIGHTNESS_SLEEP        15
-#define MESSAGE_COLOR_CYCLE         213
+#define LEDS_MESSAGE_QUEUE_SIZE     (8)
+#define LED_BRIGHTNESS_SLEEP        (15)
+#define MESSAGE_COLOR_CYCLE         (213)
+
+/**
+ * The amount of micro seconds a single step on hsv circle takes
+ */
+#define CYCLE_TIMER_US              (250000)
 
 static kernel_pid_t led_pid;
 static kernel_pid_t main_pid;
@@ -23,18 +30,22 @@ static kernel_pid_t main_pid;
 static apa102_t dev;
 static xtimer_t cycle_timer;
 static msg_t leds_rcv_queue[LEDS_MESSAGE_QUEUE_SIZE];
+
 /**
  * Flag to hold active/sleep state
  */
 static uint8_t active;
+
 /**
  * Flag to hold cycle/hold color state
  */
 static uint8_t cycling;
+
 /**
  * Place to hold brightness value while LEDS are in sleep state
  */
 static uint8_t last_alpha;
+
 /**
  * Simple color cycle function. It advance the color by 1 degree on the
  * hsv color circle.
@@ -106,6 +117,7 @@ static void leds_internal_set_color(color_rgba_t *led_color)
 NORETURN static void *led_thread(void *arg)
 {
     (void) arg;
+    DEBUG("LED thread started, pid: %" PRIkernel_pid "\n", thread_getpid());
     //initialize the message queue
     msg_init_queue(leds_rcv_queue,LEDS_MESSAGE_QUEUE_SIZE);
     //initialize apa102.
@@ -117,7 +129,6 @@ NORETURN static void *led_thread(void *arg)
     m_cycle.type = MESSAGE_COLOR_CYCLE;
     // The loop will wait to receive any color messages and process them.
     for (;;) {
-        puts("something in LEDS");
         msg_receive(&m);
         switch (m.type) {
             case MESSAGE_COLOR_NEW:
@@ -137,7 +148,7 @@ NORETURN static void *led_thread(void *arg)
                 }
                 cycling = 1;
                 // This starts the cycling after the timer expires.
-                xtimer_set_msg(&cycle_timer, 1000000, &m_cycle, led_pid);
+                xtimer_set_msg(&cycle_timer, CYCLE_TIMER_US, &m_cycle, led_pid);
                 break;
             case MESSAGE_COLOR_CYCLE:
                 // We execute a loop every second, until set to hold color.
@@ -145,7 +156,7 @@ NORETURN static void *led_thread(void *arg)
                     led_color.color = cycle_colors(&(led_color.color));
                     leds_internal_set_color(&led_color);
                     // And we start the next cycle.
-                    xtimer_set_msg(&cycle_timer, 1000000, &m_cycle, led_pid);
+                    xtimer_set_msg(&cycle_timer, CYCLE_TIMER_US, &m_cycle, led_pid);
                 }
                 break;
             case MESSAGE_COLOR_ACTIVE:
@@ -157,6 +168,7 @@ NORETURN static void *led_thread(void *arg)
             case MESSAGE_COLOR_SLEEP:
                 // The device is put to sleep. This flag turns down brightness.
                 active = 0;
+                leds_internal_set_color(&led_color);
                 break;
             default:
                 break;

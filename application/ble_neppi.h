@@ -1,4 +1,5 @@
-/* Copyright Ville Hiltunen 2018 <hiltunenvillej@gmail.com>
+/**
+ * Made by Ville Hiltunen 2018 <hiltunenvillej@gmail.com>
  *
  * All code is public domain here.
  */
@@ -28,7 +29,7 @@ kernel_pid_t ble_neppi_init(kernel_pid_t);
  * Function to add characteristics. Call this only after ble_neppi_init()
  * and before ble_neppi_start()
  */
-uint8_t ble_neppi_add_char(uint16_t UUID, char_descr_t descriptions, uint16_t initial_value);
+uint8_t ble_neppi_add_char(uint16_t UUID, char_descr_t descriptions, uint8_t initial_value);
 /**
  * Starts BLE execution.
  */
@@ -36,7 +37,7 @@ void ble_neppi_start(void);
 /**
  * Function to update a characteristic value.
  */
-void ble_neppi_update_char(uint16_t UUID, uint16_t new_value);
+void ble_neppi_update_char(uint16_t UUID, uint32_t new_value);
 
 #ifdef __cplusplus
 }
