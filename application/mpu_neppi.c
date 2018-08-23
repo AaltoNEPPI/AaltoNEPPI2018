@@ -109,6 +109,11 @@ static uint8_t calc_measurement_delta(mpu9250_results_t *n, mpu9250_results_t *o
 }
 
 /**
+ * XXX
+ */
+static MPU9250_data_t buffer1, buffer2, *buffer = &buffer1;
+
+/**
  * Internal function for sending MPU data between threads.
  *
  * This blocks on the sender side, but BLE is free
@@ -116,12 +121,38 @@ static uint8_t calc_measurement_delta(mpu9250_results_t *n, mpu9250_results_t *o
  * XXX: Transform into double buffer static memory.
  */
 static void mpu_long_send(  kernel_pid_t target,
-                            mpu9250_results_t *accel_data,
+                            mpu9250_results_t *accl_data,
                             mpu9250_results_t *gyro_data,
                             mpu9250_results_t *comp_data,
                             uint16_t short_uuid)
 {
     msg_t m;
+
+    buffer->a_x  = accl_data->x_axis;
+    buffer->a_y  = accl_data->y_axis;
+    buffer->a_z  = accl_data->z_axis;
+    buffer->g_x  = gyro_data->x_axis;
+    buffer->g_y  = gyro_data->y_axis;
+    buffer->g_z  = gyro_data->z_axis;
+    buffer->m_x  = comp_data->x_axis;
+    buffer->m_y  = comp_data->y_axis;
+    buffer->m_z  = comp_data->z_axis;
+    buffer->uuid = short_uuid;
+
+    m.type = MESSAGE_MPU_DATA;
+    m.content.ptr = &buffer;
+    int r = msg_try_send(&m, target);
+    switch (r) {
+	// Implement double buffering (expect short queue)
+    case 1:   buffer = (&buffer1 == buffer)? &buffer2: &buffer1; break;
+	// Queue full, drop the data and reuse the buffer
+    case 0:   break;
+	// Error
+    case -1:  break; // XXX What should we do here?
+    }
+
+
+#if 0
     m.type = MESSAGE_LONG_SEND_1;
     m.content.value = (uint32_t)accel_data->x_axis | ((uint32_t)accel_data->y_axis << 16);
     msg_send(&m, target);
@@ -137,6 +168,7 @@ static void mpu_long_send(  kernel_pid_t target,
     m.type = MESSAGE_LONG_SEND_5;
     m.content.value = (uint32_t)comp_data->z_axis | ((uint32_t)short_uuid << 16);
     msg_send(&m, target);
+#endif
 }
 
 static msg_t rcv_queue[MPU_RCV_QUEUE_SIZE];

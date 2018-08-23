@@ -50,7 +50,7 @@
 /**
  * BLE thread message queue size
  */
-#define BLE_RCV_QUEUE_SIZE  (8)
+#define BLE_RCV_QUEUE_SIZE  (4)
 
 /**
  * Advertised device name
@@ -465,14 +465,13 @@ void ble_our_service_on_ble_evt(ble_os_t * p_our_service, ble_evt_t const * p_bl
  *  data:           Pointer to the byte array containing our data.
  *  uuid:           Short UUID of the characteristic we want to update.
  */
-static void characteristic_update(ble_os_t *p_our_service, uint8_t *data, uint16_t uuid)
+static void characteristic_update(ble_os_t *p_our_service, void *value, uint16_t uuid)
 {
     // Find our UUID we want to update.
     for (uint8_t i = 0; i < char_count; i++) {
         if (p_our_service->uuids[i] == uuid) {
             // If there is a match, see if device is connected.
             if (p_our_service->conn_handle != BLE_CONN_HANDLE_INVALID) {
-                // Device connected, procedure for update + notification.
                     uint16_t               len = p_our_service->char_lens[i];
                     ble_gatts_hvx_params_t hvx_params;
                     memset(&hvx_params, 0, sizeof(hvx_params));
@@ -480,7 +479,7 @@ static void characteristic_update(ble_os_t *p_our_service, uint8_t *data, uint16
                     hvx_params.type   = BLE_GATT_HVX_NOTIFICATION;
                     hvx_params.offset = 0;
                     hvx_params.p_len  = &len;
-                    hvx_params.p_data = data;
+                    hvx_params.p_data = value;
 
                     sd_ble_gatts_hvx(p_our_service->conn_handle, &hvx_params);
             }
@@ -490,7 +489,7 @@ static void characteristic_update(ble_os_t *p_our_service, uint8_t *data, uint16
                     ble_gatts_value_t tx_data;
                     tx_data.len     = len;
                     tx_data.offset  = 0;
-                    tx_data.p_value = data;
+                    tx_data.p_value = value;
                     sd_ble_gatts_value_set(p_our_service->conn_handle,
                                            p_our_service->char_handles[i].value_handle,
                                            &tx_data);
@@ -527,70 +526,28 @@ NORETURN static void *ble_thread(void *arg)
     }
     // Start execution.
     ble_advertising_start(&ble_context);
-    static uint8_t mpu_data[18];
-    memset(mpu_data, 0, sizeof(mpu_data));
     for (;;) {
-            msg_receive(&m);
-        // Check if the message is about updating a characteristic.
-        for (uint8_t i = 0; i < char_count; i++) {
-            if (our_service.uuids[i] == m.type) {
-                characteristic_update(&our_service, (uint8_t *)&m.content.value, m.type);
-            }
-        }
+        msg_receive(&m);
+
         switch (m.type) {
-            /*  Little endian send */
-            // XXX Turn into double buffer send.
-            case MESSAGE_LONG_SEND_1:
-                *((uint32_t *)&mpu_data[0]) = m.content.value;
-                break;
-            case MESSAGE_LONG_SEND_2:
-                *((uint32_t *)&mpu_data[4]) = m.content.value;
-                break;
-            case MESSAGE_LONG_SEND_3:
-                *((uint32_t *)&mpu_data[8]) = m.content.value;
-                break;
-            case MESSAGE_LONG_SEND_4:
-                *((uint32_t *)&mpu_data[12]) = m.content.value;
-                break;
-            case MESSAGE_LONG_SEND_5:
-                *((uint16_t *)&mpu_data[16]) = (uint16_t)m.content.value;
-                uint16_t temp_uuid = (uint16_t)(m.content.value >> 16);
-                characteristic_update(&our_service, mpu_data, temp_uuid);
-                memset(mpu_data, 0, sizeof(mpu_data));
-                break;
-            
-            /*  Big endian send */
-            /*
-            case MESSAGE_LONG_SEND_1:
-                *((uint32_t *)&mpu_data[14]) = htonl(m.content.value);
-                break;
-            case MESSAGE_LONG_SEND_2:
-                *((uint32_t *)&mpu_data[10]) = htonl(m.content.value);
-                break;
-            case MESSAGE_LONG_SEND_3:
-                *((uint32_t *)&mpu_data[6]) = htonl(m.content.value);
-                break;
-            case MESSAGE_LONG_SEND_4:
-                *((uint32_t *)&mpu_data[2]) = htonl(m.content.value);
-                break;
-            case MESSAGE_LONG_SEND_5:
-                *((uint16_t *)&mpu_data[0]) = htons((uint16_t)m.content.value);
-                uint16_t temp_uuid = (uint16_t)(m.content.value >> 16);
-                characteristic_update(&our_service, mpu_data, temp_uuid);
-                memset(mpu_data, 0, sizeof(mpu_data));
-                break;
-            */
-            case BLE_CONNECT_MSG:
-                LED_CONNECTED_ON;
-                our_service.conn_handle = m.content.value;
-                break;
-            case BLE_DISCONNECT_MSG:
-                LED_CONNECTED_OFF;
-                our_service.conn_handle = BLE_CONN_HANDLE_INVALID;
-                break;
-            default:
-                break;
+        case MESSAGE_MPU_DATA: {
+            MPU9250_data_t *p = m.content.ptr;
+            characteristic_update(&our_service, p, p->uuid);
+            break;
         }
+        case BLE_CONNECT_MSG:
+            LED_CONNECTED_ON;
+            our_service.conn_handle = m.content.value;
+            break;
+        case BLE_DISCONNECT_MSG:
+            LED_CONNECTED_OFF;
+            our_service.conn_handle = BLE_CONN_HANDLE_INVALID;
+            break;
+        default:
+            break;
+        }
+
+        // DEBUG("message received: type=%d\n", m.type);
     }
 }
 
