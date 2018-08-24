@@ -20,8 +20,10 @@ extern "C" {
 
 /**
  * Initializes the MPU9250 drivers and a thread to run them.
- * The uint16_t short_uuid is the target thread that you want to receive
- * the MPU data.
+ *
+ * Target is the thread that you want to receive the MPU data. Short_uuid
+ * is the uuid of the characteristic you want to contain the MPU data.
+ * Make that the characteristic can hold 18 bytes of data.
  */
 void mpu_neppi_init(kernel_pid_t main, kernel_pid_t target, uint16_t short_uuid);
 

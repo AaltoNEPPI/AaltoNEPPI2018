@@ -3,7 +3,7 @@
  *
  * Written by Ville Hiltunen in 2018
  *
- * All code is public.
+ * All code is public domain.
  */
 
 #include <stdlib.h>
@@ -33,8 +33,9 @@
 #define DELTA_EPSILON           (10)
 
 /**
- * Wake on motion threshold for movement. Values 0-255 are mapped to
- * (0~1020mg)
+ * Wake on motion threshold for movement.
+ *
+ * Values 0-255 are mapped to (0~1020mg)
  */
 #define WOM_THRESHOLD           (50)
 
@@ -66,15 +67,15 @@ static mpu9250_t dev;
 static uint8_t mpu_active;
 
 /**
- * Heuristic for defining how long MPU should be still before
- * it is put to Wake on Motion state.
+ * Heuristic for defining how long MPU stays still before WoM activates.
  */
 static int shutdown_count;
 
 /**
- * MPU interrupt callback function. It sends a message to the
- * MPU thread that an interrupt has happened. It's up to the thread
- * to find out what kind of interrupt it is.
+ * MPU interrupt callback function.
+ *
+ * It sends a message to the MPU thread that an interrupt has happened.
+ * It's up to the thread to find out what kind of interrupt it is.
  */
 static void mpu_interrupt(void *arg) {
     msg_t m;
@@ -109,9 +110,10 @@ static uint8_t calc_measurement_delta(mpu9250_results_t *n, mpu9250_results_t *o
 
 /**
  * Internal function for sending MPU data between threads.
+ *
  * This blocks on the sender side, but BLE is free
  * to carry out operations during it.
- * TODO: Transform into double buffer static memory.
+ * XXX: Transform into double buffer static memory.
  */
 static void mpu_long_send(  kernel_pid_t target,
                             mpu9250_results_t *accel_data,

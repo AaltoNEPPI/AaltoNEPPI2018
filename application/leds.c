@@ -16,7 +16,15 @@
 #include "debug.h"
 
 #define LEDS_MESSAGE_QUEUE_SIZE     (8)
+
+/**
+ * Brightness of the device when it is sleeping. Between 0 and 255.
+ */
 #define LED_BRIGHTNESS_SLEEP        (15)
+
+/**
+ * Message type for color cycle control.
+ */
 #define MESSAGE_COLOR_CYCLE         (213)
 
 /**
@@ -65,13 +73,11 @@ static color_rgb_t cycle_colors(color_rgb_t * rgb_color)
 }
 /**
  * API function to set a new color to the LEDs
+ *
+ * Packs the color into a RIOT message and sends it to the LED thread.
  */
 void leds_set_color(color_rgba_t led_color)
 {
-    /*
-     * The apa102 driver wants a color_rgba_t input. Problem is, even though we have it,
-     * RIOT messages are uint32_t, so we have to cast the data type before sending.
-     */
     msg_t m;
     memset(&m, 0, sizeof(msg_t));
     m.type = MESSAGE_COLOR_NEW;
@@ -81,9 +87,10 @@ void leds_set_color(color_rgba_t led_color)
     msg_try_send(&m, led_pid);
 }
 /**
- * Internal function that actually sets the LED colors. It also tells main
- * what color and intensity is currently active. Color is sent as hue, while
- * while intensity is sent as an alpha value.
+ * Internal function that actually sets the LED colors.
+ *
+ * Function also tells main what color and intensity is currently active. Color
+ * is sent as hue (0-360), while intensity is sent as an alpha value (0-255).
  */
 static void leds_internal_set_color(color_rgba_t *led_color)
 {
@@ -142,7 +149,8 @@ NORETURN static void *led_thread(void *arg)
                 break;
             case MESSAGE_COLOR_SET_CYCLE:
                 // This starts the color cycle process.
-                // To prevent multiple timers, we ignore repeated messages.
+                // To prevent starting multiple timers, we ignore
+                // repeated messages.
                 if (cycling) {
                     break;
                 }
@@ -177,6 +185,9 @@ NORETURN static void *led_thread(void *arg)
     /* NOTREACHED */
 }
 
+/**
+ * API function to initialize the LEDs
+ */
 void leds_init(kernel_pid_t pid)
 {
     main_pid = pid;

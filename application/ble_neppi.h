@@ -16,6 +16,8 @@ extern "C" {
 #endif
 /**
  * Struct to hold characteristic creation data.
+ *
+ * char_len defines the length of the characteristic in bytes.
  */
 typedef struct {
     uint8_t char_len;
@@ -23,11 +25,16 @@ typedef struct {
 
 /**
  * Initialization function for the BLE API.
+ *
+ * Initializes the softdevice and starts a thread to handle it.
+ * Input is the main thread pid so two way communication between
+ * the threads can be enstablished.
  */
 kernel_pid_t ble_neppi_init(kernel_pid_t);
 /**
- * Function to add characteristics. Call this only after ble_neppi_init()
- * and before ble_neppi_start()
+ * Function to add characteristics. 
+ *
+ * Call this only after ble_neppi_init() and before ble_neppi_start()
  */
 uint8_t ble_neppi_add_char(uint16_t UUID, char_descr_t descriptions, uint8_t initial_value);
 /**

@@ -1,0 +1,20 @@
+This is AaltoNeppi2018 software project readme.
+
+LAST UPDATE:
+24/08/2018
+
+NOTES:
+The current 24/08/2018 build contains the speculative LF crystal fix as CFLAGS.
+In case the fix turns out to be uneffective/harmful, please do remove them.
+
+The current pin definitions are for NRF 52 DK. To define the pins for the PCB,
+follow the following steps:
+- In Makefile, change   -DAPA102_PARAM_DATA_PIN=GPIO_PIN\(0,3\) to
+                        -DAPA102_PARAM_DATA_PIN=GPIO_PIN\(0,13\)
+                and     -DAPA102_PARAM_CLK_PIN=GPIO_PIN\(0,4\)  to
+                        -DAPA102_PARAM_CLK_PIN=GPIO_PIN\(0,15\)
+
+- In ble_neppi.c, initialize the LED pin (16), as output and then redefine
+  LED_CONNECTED_ON and LED_CONNECTED_OFF to setting and clearing the pin.
+
+- MPU interrupt and i2c pins should be correct without change.

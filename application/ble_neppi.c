@@ -27,13 +27,14 @@
 #define ENABLE_DEBUG (1)
 #include "debug.h"
 #include "ble_neppi.h"
-
+// XXX Define the PCB pin (think it was 16) instead of dk led.
 #define LED_CONNECTED_ON  LED1_ON
 #define LED_CONNECTED_OFF LED1_OFF
 
 /**
- * Maximum number of characteristics a service can have. This can
- * come from the sdk ble headers.
+ * Maximum number of characteristics a service can have.
+ *
+ * This can come from the sdk ble headers.
  */
 //#ifndef BLE_GATT_DB_MAX_CHARS
 #define BLE_GATT_DB_MAX_CHARS 6
@@ -41,6 +42,7 @@
 
 /**
  * RIOT thread priority for the BLE handler.
+ *
  * We use the same thread priority as for TCP/IP network interfaces.
  */
 #define BLE_THREAD_PRIO (GNRC_NETIF_PRIO)
@@ -58,7 +60,9 @@
 #endif // DEVICE_NAME
 
 /**
- * Application's BLE observer priority. You shouldn't need to modify this value.
+ * Application's BLE observer priority.
+ *
+ * You shouldn't need to modify this value.
  * Used in NRF_SDH_BLE_OBSERVER.
  * By default there are a maximum of four levels, 0-3.
  * By default, the application priority should be lowest (highest number).
@@ -79,6 +83,7 @@
 
 /**
  * The advertising interval (in units of 0.625 ms).
+ *
  * This value can vary between 100ms to 10.24s).
  */
 #define APP_ADV_INTERVAL MSEC_TO_UNITS(50, UNIT_0_625_MS)
@@ -134,6 +139,9 @@
  */
 static uint8_t char_count = 0;
 
+/**
+ * Struct to store service and characteristic related information
+ */
 typedef struct {
     /**
      * Handle of the current connection (as provided by the BLE stack,
@@ -168,12 +176,9 @@ static kernel_pid_t send_pid;
 static kernel_pid_t ble_thread_pid;
 
 /**
- *
+ * Forward declarations
  */
-
 static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context);
-//static void add_characteristic(ble_os_t* p_our_service, uint16_t  characteristic, uint16_t initial_value);
-
 
 /**
  * Function called by the NRF_ASSERT macro when an assertion
@@ -182,7 +187,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context);
  * For now, we just print an error message and enter a busy
  * loop, waiting for a developer with a debugger.
  *
- * Note that this is NOT good for a production version.
+ * XXX Note that this is NOT good for a production version.
  */
 void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
 {
@@ -202,7 +207,7 @@ do {                                                                            
 
 static ble_uuid_t adv_uuids[] = {{BLE_UUID_OUR_SERVICE, 0 /* Filled dynamically */}};
 
-//TODO Have some of these come from the main during initialization.
+//XXX Some of these could come as input from main during initialization.
 static const ble_context_t ble_context = {
     .conn_cfg_tag = APP_BLE_CONN_CFG_TAG,
     .name = DEVICE_NAME,
@@ -214,6 +219,9 @@ static const ble_context_t ble_context = {
 // Register a handler for BLE events.
 NRF_SDH_BLE_OBSERVER(m_ble_observer, APP_BLE_OBSERVER_PRIO, ble_evt_handler, NULL);
 
+/**
+ * Internal function to initialize our service.
+ */
 static void services_init(const ble_context_t* p_ble_context)
 {
     ble_uuid_t *p_service_uuid = p_ble_context->adv_uuids;
@@ -278,7 +286,10 @@ static void gatt_init(void)
 }
 /**
  * Internal function to add a characteristic.
- * TODO: Initial value is only 8 bit, while value size can be larger.
+ *
+ * XXX: Initial value is only 8 bit, while value size can be larger.
+ * Initial value should be a pointer to a byte array instead, though
+ * this shouldn't matter in the scope of our project.
  */
 static void add_characteristic(ble_os_t* p_our_service, uint16_t  characteristic, uint8_t value, uint8_t char_len)
 {
@@ -376,6 +387,8 @@ static void on_ble_evt(ble_os_t * p_our_service, ble_evt_t const * p_ble_evt)
 }
 
 /**
+ * Part of the SoftDevice callback function.
+ *
  * This function is how we respond to the softdevice event when a client
  * writes on our server. This function is currently called in an
  * interrupt context and is only thread safe on the assuption that
@@ -446,13 +459,20 @@ void ble_our_service_on_ble_evt(ble_os_t * p_our_service, ble_evt_t const * p_bl
 }
 /**
  * Function to update a characteristic.
+ *
+ * Inputs:
+ *  p_our_service:  Pointer to the static service and characteristic struct.
+ *  data:           Pointer to the byte array containing our data.
+ *  uuid:           Short UUID of the characteristic we want to update.
  */
-static void characteristic_update(ble_os_t *p_our_service, uint8_t *acc_value, uint16_t uuid)
+static void characteristic_update(ble_os_t *p_our_service, uint8_t *data, uint16_t uuid)
 {
     // Find our UUID we want to update.
     for (uint8_t i = 0; i < char_count; i++) {
         if (p_our_service->uuids[i] == uuid) {
+            // If there is a match, see if device is connected.
             if (p_our_service->conn_handle != BLE_CONN_HANDLE_INVALID) {
+                // Device connected, procedure for update + notification.
 	            uint16_t               len = p_our_service->char_lens[i];
 	            ble_gatts_hvx_params_t hvx_params;
 	            memset(&hvx_params, 0, sizeof(hvx_params));
@@ -460,7 +480,7 @@ static void characteristic_update(ble_os_t *p_our_service, uint8_t *acc_value, u
 	            hvx_params.type   = BLE_GATT_HVX_NOTIFICATION;
 	            hvx_params.offset = 0;
 	            hvx_params.p_len  = &len;
-	            hvx_params.p_data = acc_value;
+	            hvx_params.p_data = data;
 
 	            sd_ble_gatts_hvx(p_our_service->conn_handle, &hvx_params);
             }
@@ -470,7 +490,7 @@ static void characteristic_update(ble_os_t *p_our_service, uint8_t *acc_value, u
 	            ble_gatts_value_t tx_data;
 	            tx_data.len     = len;
 	            tx_data.offset  = 0;
-	            tx_data.p_value = (uint8_t*)acc_value;
+	            tx_data.p_value = data;
 	            sd_ble_gatts_value_set(p_our_service->conn_handle,
 			                   p_our_service->char_handles[i].value_handle,
 			                   &tx_data);
@@ -479,7 +499,7 @@ static void characteristic_update(ble_os_t *p_our_service, uint8_t *acc_value, u
     }
 }
 /**
- * This function respons to the softdevice callbacks.
+ * This function responds to the softdevice callbacks.
  */
 static void
 ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
@@ -511,7 +531,6 @@ NORETURN static void *ble_thread(void *arg)
     memset(mpu_data, 0, sizeof(mpu_data));
     for (;;) {
 	    msg_receive(&m);
-	    // DEBUG("message received: type=%d\n", m.type);
         // Check if the message is about updating a characteristic.
         for (uint8_t i = 0; i < char_count; i++) {
             if (our_service.uuids[i] == m.type) {
@@ -520,7 +539,7 @@ NORETURN static void *ble_thread(void *arg)
         }
         switch (m.type) {
             /*  Little endian send */
-            
+            // XXX Turn into double buffer send.
             case MESSAGE_LONG_SEND_1:
                 *((uint32_t *)&mpu_data[0]) = m.content.value;
                 break;
@@ -587,7 +606,6 @@ kernel_pid_t ble_neppi_init(kernel_pid_t main_pid)
     gatt_init();
     services_init(&ble_context);
     ble_advertising_init(&ble_context);
-    //send_pid = thread_pid;
     ble_thread_pid = thread_create(ble_thread_stack, sizeof(ble_thread_stack),
                    BLE_THREAD_PRIO, 0/*THREAD_CREATE_STACKTEST*/,
                    ble_thread, NULL, "BLE");
@@ -603,13 +621,12 @@ void ble_neppi_start(void)
     msg_send(&start_message, ble_thread_pid);
 }
 /**
- * API function to add a new characteristic to our service. Should only be
- * used after initialization, but before thread has been started.
+ * API function to add a new characteristic to our service.
+ *
+ * Should only be used after initialization, but before thread has been started.
  */
-//TODO Error checking?
 uint8_t ble_neppi_add_char(uint16_t UUID, char_descr_t descriptions, uint8_t initial_value)
 {
-    // TODO, integrate description configuration from outside the API.
     if (char_count >= BLE_GATT_DB_MAX_CHARS){
         return 0;
     }

@@ -1,11 +1,11 @@
 /*
- * This is a test file for AaltoNeppi2018 BLE API. It changes LED color
- * and intensity according to messages it receives from a BLE client.
+ * This is the main file for AaltoNeppi2018.
  *
  * Made by Ville Hiltunen 2018 <hiltunenvillej@gmail.com>
  *
  * All code here is open source
  */
+
 #include <stdio.h>
 #include <string.h>
 
@@ -47,6 +47,8 @@ color_hsv_t parse_message_to_hsv(uint32_t message_content)
     };
     return hsv_color;
 }
+
+//Work in progress adc. Currently freezes threads.
 /*
 NORETURN static void *adc_thread(void *arg)
 {
@@ -67,18 +69,15 @@ int main(int ac, char **av)
     xtimer_sleep(1);
     // Initialize buttons
     gpio_init(BTN0_PIN, BTN0_MODE);
-    //int failure = adc_init(NRF52_AIN5);
-    //printf("Did we fail? %d\n", failure);
-    //xtimer_sleep(1);
-    // Initialize BLE. The BLE thread needs main PID to know where to send
-    // messages.
+    /* XXX ADC code
+    int failure = adc_init(NRF52_AIN5);
+    printf("Did we fail? %d\n", failure);
+    xtimer_sleep(1);
+    */
+    // Initialize BLE
     kernel_pid_t ble_pid = ble_neppi_init(main_pid);
     xtimer_sleep(1);
-    // Add characteristics. We use one to send mpu data, two to send and
-    // receive color data. The last 2 are for controlling color cycling
-    // and sleep status. Note that cycling and sleep is also controlled
-    // by the MPU.
-    //TODO test with more than 6 characteristics.
+    // Define descriptions for BLE characteristics. Currently only length.
     char_descr_t mpu_desc = {
         .char_len = 18,
     };
@@ -88,11 +87,17 @@ int main(int ac, char **av)
     char_descr_t generic_desc = {
         .char_len = 1,
     };
+    // MPU data. Should be at least 18 bytes.
     ble_neppi_add_char(BLE_UUID_CONTROLS_CHARACTERISTIC, mpu_desc, 0);
+    // Color hue control. Values 0-360
     ble_neppi_add_char(BLE_UUID_H, h_desc, 0);
+    // Color intensity control. Values 0-255
     ble_neppi_add_char(BLE_UUID_V, generic_desc, 0);
+    // LED cycle clientside status control. 0-1
     ble_neppi_add_char(BLE_UUID_CYCLING, generic_desc, 1);
+    // LED sleep clientside status control. 0-1
     ble_neppi_add_char(BLE_UUID_ACTIVE, generic_desc, 0);
+
     // Initialize LEDs
     leds_init(main_pid);
     // Initialize the MPU9250.
@@ -101,25 +106,25 @@ int main(int ac, char **av)
     ble_neppi_start();
     // Start the MPU execution.
     mpu_neppi_start();
+
     // Put LED color to red.
     color_rgba_t led_color = {
         .color = { .r = 255, .g = 0, .b = 0, },
         .alpha = 100,
     };
     leds_set_color(led_color);
-    //static char adc_thread_stack[(THREAD_STACKSIZE_DEFAULT)];
-    //thread_create(adc_thread_stack, sizeof(adc_thread_stack),
-    //               THREAD_PRIORITY_MAIN + 1, 0/*THREAD_CREATE_STACKTEST*/,
-    //               adc_thread, NULL, "ADC");
-
+    /* XXX ADC code
+    static char adc_thread_stack[(THREAD_STACKSIZE_DEFAULT)];
+    thread_create(adc_thread_stack, sizeof(adc_thread_stack),
+                   THREAD_PRIORITY_MAIN + 1, 0,
+                   adc_thread, NULL, "ADC");
+    */
     // Make LEDs cycle
     leds_cycle();
     // Switch to main execution loop.
     msg_t main_message;
     for (;;) {
-        //int queue_count = msg_avail();
-        //printf("Queue had: %d\n", queue_count);
-        msg_try_receive(&main_message);
+        msg_receive(&main_message);
         switch (main_message.type) {
             case BLE_UUID_H:
                 // Client sent a new hue
@@ -175,9 +180,6 @@ int main(int ac, char **av)
             default:
                 break;
         }
-        // Message doesn't seem to reset it's type, so it has to be reset manually. Weird.
-        main_message.type = 0;
-        xtimer_usleep(100000);
     }
     /* NOTREACHED */
     return 0;
