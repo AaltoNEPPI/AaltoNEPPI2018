@@ -3,7 +3,7 @@
  *
  * Made by Ville Hiltunen 2018 <hiltunenvillej@gmail.com>
  *
- * All code here is open source
+ * All code is placed in public domain.
  */
 
 #include <stdio.h>

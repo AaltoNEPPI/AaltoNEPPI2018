@@ -3,7 +3,7 @@
  *
  * Written by Ville Hiltunen in 2018
  *
- * All code is public domain.
+ * All code is in public domain.
  */
 
 #include <stdlib.h>
