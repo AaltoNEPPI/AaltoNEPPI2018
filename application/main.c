@@ -64,22 +64,27 @@ static msg_t main_rcv_queue[MAIN_RCV_QUEUE_SIZE];
 
 int main(int ac, char **av)
 {
+    DEBUG("Entering main function.\n");
     LED0_OFF; // On by default on this PCB
 
     msg_init_queue(main_rcv_queue, MAIN_RCV_QUEUE_SIZE);
     kernel_pid_t main_pid = thread_getpid();
-    xtimer_sleep(1);
-    // Initialize buttons
-    gpio_init(BTN0_PIN, BTN0_MODE);
-    /* XXX ADC code
+    xtimer_usleep(100);
+
+#if 0
+    // XXX ADC code
     int failure = adc_init(NRF52_AIN5);
     printf("Did we fail? %d\n", failure);
-    xtimer_sleep(1);
-    */
+    xtimer_usleep(100);
+#endif
     // Initialize BLE
     kernel_pid_t ble_pid = ble_neppi_init(main_pid);
-    xtimer_sleep(1);
-    // Define descriptions for BLE characteristics. Currently only length.
+
+    // Add characteristics. We use one to send mpu data, two to send and
+    // receive color data. The last 2 are for controlling color cycling
+    // and sleep status. Note that cycling and sleep is also controlled
+    // by the MPU.
+    //TODO test with more than 6 characteristics.
     char_descr_t mpu_desc = {
         .char_len = 18,
     };
@@ -124,9 +129,14 @@ int main(int ac, char **av)
     // Make LEDs cycle
     leds_cycle();
     // Switch to main execution loop.
-    msg_t main_message;
+
+    DEBUG("Entering main loop.\n");
+
     for (;;) {
+        msg_t main_message;
+
         msg_receive(&main_message);
+
         switch (main_message.type) {
             case BLE_UUID_H:
                 // Client sent a new hue
