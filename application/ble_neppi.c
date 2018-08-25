@@ -56,7 +56,7 @@
  * Advertised device name
  */
 #ifndef DEVICE_NAME
-#define DEVICE_NAME "NepEmBLE"
+#define DEVICE_NAME "Neppi1"
 #endif // DEVICE_NAME
 
 /**
