@@ -27,9 +27,9 @@
 #define ENABLE_DEBUG (1)
 #include "debug.h"
 #include "ble_neppi.h"
-// XXX Define the PCB pin (think it was 16) instead of dk led.
-#define LED_CONNECTED_ON  LED1_ON
-#define LED_CONNECTED_OFF LED1_OFF
+
+#define LED_CONNECTED_ON  LED0_ON
+#define LED_CONNECTED_OFF LED0_OFF
 
 /**
  * Maximum number of characteristics a service can have.

@@ -64,6 +64,8 @@ static msg_t main_rcv_queue[MAIN_RCV_QUEUE_SIZE];
 
 int main(int ac, char **av)
 {
+    LED0_OFF; // On by default on this PCB
+
     msg_init_queue(main_rcv_queue, MAIN_RCV_QUEUE_SIZE);
     kernel_pid_t main_pid = thread_getpid();
     xtimer_sleep(1);
