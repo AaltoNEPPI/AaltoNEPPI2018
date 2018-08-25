@@ -147,7 +147,7 @@ static msg_t rcv_queue[MPU_RCV_QUEUE_SIZE];
 NORETURN static void *mpu_thread(void *arg)
 {
     (void)arg;
-    DEBUG("MPU thread started, pid: %" PRIkernel_pid "\n", thread_getpid());
+    DEBUG("mpu_neppi: MPU thread started, pid: %" PRIkernel_pid "\n", thread_getpid());
     msg_t m;
     msg_t m_to_main;
     msg_init_queue(rcv_queue, MPU_RCV_QUEUE_SIZE);
@@ -268,6 +268,7 @@ void mpu_neppi_init(kernel_pid_t main, kernel_pid_t target, uint16_t short_uuid)
     main_pid = main;
     target_pid = target;
     uuid = short_uuid;
+
     // Initialize the MPU for the first time.
     int result = mpu9250_init(&dev, &mpu9250_params[0]);
     if (result == -1) {
@@ -278,8 +279,9 @@ void mpu_neppi_init(kernel_pid_t main, kernel_pid_t target, uint16_t short_uuid)
     }
     set_sample_rates();
     mpu_thread_pid = thread_create(mpu_thread_stack, sizeof(mpu_thread_stack),
-                   THREAD_PRIORITY_MAIN - 2, 0/*THREAD_CREATE_STACKTEST*/,
+                   THREAD_PRIORITY_MAIN - 2, THREAD_CREATE_WOUT_YIELD,
                    mpu_thread, NULL, "MPU");
+    DEBUG("mpu_neppi: MPU thread created\n");
 }
 /**
  * API function to start MPU execution
