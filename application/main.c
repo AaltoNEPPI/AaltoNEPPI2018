@@ -120,15 +120,15 @@ int main(int ac, char **av)
         .alpha = 100,
     };
     leds_set_color(led_color);
-    /* XXX ADC code
+#if 0
+    // XXX ADC code
     static char adc_thread_stack[(THREAD_STACKSIZE_DEFAULT)];
     thread_create(adc_thread_stack, sizeof(adc_thread_stack),
                    THREAD_PRIORITY_MAIN + 1, 0,
                    adc_thread, NULL, "ADC");
-    */
+#endif
     // Make LEDs cycle
     leds_cycle();
-    // Switch to main execution loop.
 
     DEBUG("Entering main loop.\n");
 
@@ -137,46 +137,47 @@ int main(int ac, char **av)
 
         msg_receive(&main_message);
 
+        int value = main_message.content.value;
+
         switch (main_message.type) {
             case BLE_UUID_H:
                 // Client sent a new hue
-                DEBUG("Message value was: %d",main_message.content.value);
-                color_hsv_t hsv_color = parse_message_to_hsv(main_message.content.value);
+                DEBUG("Hue: %d\n", value);
+                color_hsv_t hsv_color = parse_message_to_hsv(value);
                 //This function alters led_color.color directly. See RIOT color.c$
                 color_hsv2rgb(&hsv_color,&(led_color.color));
                 leds_set_color(led_color);
                 break;
             case BLE_UUID_V:
                 // Client sent a new intensity
-                DEBUG("Intensity message was: %d", main_message.content.value);
-                led_color.alpha = (uint8_t)(main_message.content.value);
+                DEBUG("Intensity: %d\n", value);
+                led_color.alpha = (uint8_t)(value);
                 leds_set_color(led_color);
                 break;
             case BLE_UUID_CYCLING:
                 // Client sent a command concerning color cycling
-                if (main_message.content.value == 1) {
-                    leds_cycle();
-                }
-                if (main_message.content.value == 0) {
-                    leds_hold();
+                DEBUG("Cycling: %d\n", value);
+                switch (value) {
+                case 1: leds_cycle(); break;
+                case 0: leds_hold();  break;
                 }
                 break;
             case BLE_UUID_ACTIVE:
                 // Client sent a command concerning led status
-                if (main_message.content.value == 1) {
-                    leds_active();
-                }
-                if (main_message.content.value == 0) {
-                    leds_sleep();
+                DEBUG("Activation: %d\n", value);
+                switch (value) {
+                case 1: leds_active(); break;
+                case 0: leds_sleep();  break;
                 }
                 break;
+
             case MESSAGE_COLOR_NEW_H:
                 // LEDs just changed color, send to Client
-                ble_neppi_update_char(BLE_UUID_H, main_message.content.value);
+                ble_neppi_update_char(BLE_UUID_H, value);
                 break;
             case MESSAGE_COLOR_NEW_V:
                 // LEDs just changed intensity, send to Client
-                ble_neppi_update_char(BLE_UUID_V, main_message.content.value);
+                ble_neppi_update_char(BLE_UUID_V, value);
                 break;
             case MESSAGE_MPU_ACTIVE:
                 // MPU detected motion, set LED status and notify Client
