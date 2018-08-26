@@ -142,7 +142,7 @@ int main(int ac, char **av)
         switch (main_message.type) {
             case BLE_UUID_H:
                 // Client sent a new hue
-                DEBUG("Hue: %d\n", value);
+                DEBUG("Set hue: %d\n", value);
                 color_hsv_t hsv_color = parse_message_to_hsv(value);
                 //This function alters led_color.color directly. See RIOT color.c$
                 color_hsv2rgb(&hsv_color,&(led_color.color));
@@ -150,13 +150,13 @@ int main(int ac, char **av)
                 break;
             case BLE_UUID_V:
                 // Client sent a new intensity
-                DEBUG("Intensity: %d\n", value);
+                DEBUG("Set intensity: %d\n", value);
                 led_color.alpha = (uint8_t)(value);
                 leds_set_color(led_color);
                 break;
             case BLE_UUID_CYCLING:
                 // Client sent a command concerning color cycling
-                DEBUG("Cycling: %d\n", value);
+                DEBUG("Set cycling: %d\n", value);
                 switch (value) {
                 case 1: leds_cycle(); break;
                 case 0: leds_hold();  break;
@@ -164,7 +164,7 @@ int main(int ac, char **av)
                 break;
             case BLE_UUID_ACTIVE:
                 // Client sent a command concerning led status
-                DEBUG("Activation: %d\n", value);
+                DEBUG("Set activation: %d\n", value);
                 switch (value) {
                 case 1: leds_active(); break;
                 case 0: leds_sleep();  break;
@@ -173,24 +173,30 @@ int main(int ac, char **av)
 
             case MESSAGE_COLOR_NEW_H:
                 // LEDs just changed color, send to Client
+                DEBUG("Color hue: %d\n", value);
                 ble_neppi_update_char(BLE_UUID_H, value);
                 break;
             case MESSAGE_COLOR_NEW_V:
                 // LEDs just changed intensity, send to Client
+                DEBUG("Intensity: %d\n", value);
                 ble_neppi_update_char(BLE_UUID_V, value);
                 break;
             case MESSAGE_MPU_ACTIVE:
                 // MPU detected motion, set LED status and notify Client
+                DEBUG("Active:    %d\n", value);
                 leds_active();
                 leds_hold();
                 ble_neppi_update_char(BLE_UUID_ACTIVE, 1);
                 break;
             case MESSAGE_MPU_SLEEP:
                 // MPU detected stillness, set LED status and notify Client
+                DEBUG("Sleep:     %d\n", value);
                 leds_sleep();
                 leds_cycle();
                 ble_neppi_update_char(BLE_UUID_ACTIVE, 0);
+		break;
             default:
+		DEBUG("Unknown message\n");
                 break;
         }
     }
