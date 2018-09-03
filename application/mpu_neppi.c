@@ -111,7 +111,6 @@ static uint8_t calc_measurement_delta(mpu9250_results_t *n, mpu9250_results_t *o
 /**
  * XXX
  */
-static MPU9250_data_t buffer1, buffer2, *buffer = &buffer1;
 
 /**
  * Internal function for sending MPU data between threads.
@@ -126,7 +125,7 @@ static void mpu_long_send(  kernel_pid_t target,
                             mpu9250_results_t *comp_data,
                             uint16_t short_uuid)
 {
-    msg_t m;
+    static MPU9250_data_t buffer1, buffer2, *buffer = &buffer1;
 
     buffer->a_x  = accl_data->x_axis;
     buffer->a_y  = accl_data->y_axis;
@@ -139,8 +138,10 @@ static void mpu_long_send(  kernel_pid_t target,
     buffer->m_z  = comp_data->z_axis;
     buffer->uuid = short_uuid;
 
-    m.type = MESSAGE_MPU_DATA;
-    m.content.ptr = &buffer;
+    msg_t m = {
+	.type = MESSAGE_MPU_DATA,
+	.content = { .ptr = buffer },
+    };
     int r = msg_try_send(&m, target);
     switch (r) {
 	// Implement double buffering (expect short queue)
