@@ -14,17 +14,36 @@
 #include "thread.h"
 #include "leds.h"
 #include "xtimer.h"
+#include "nrf_sdh_ble.h"
 #include "ble_neppi.h"
 #include "periph/gpio.h"
 #include "mpu_neppi.h"
 //#include "periph/adc.h"
 
 #define MAIN_RCV_QUEUE_SIZE                 (8)
-#define BLE_UUID_CONTROLS_CHARACTERISTIC    0xABBB
-#define BLE_UUID_H                          0xBBD0
-#define BLE_UUID_V                          0xBBCF
-#define BLE_UUID_CYCLING                    0xAACF
-#define BLE_UUID_ACTIVE                     0xCCCF
+
+/*************
+ * UUIDs used for the service and characteristics
+ *************/
+
+// 128-bit base UUID
+static const ble_uuid128_t NEPPI_BLE_UUID_BASE = {
+    {
+	0x8D, 0x19, 0x7F, 0x81,
+	0x08, 0x08, 0x12, 0xE0,
+	0x2B, 0x14, 0x95, 0x71,
+	0x05, 0x06, 0x31, 0xB1,
+    }
+};
+
+// Just a random, but recognizable value for the service
+#define NEPPI_BLE_UUID_SERVICE       0xABDC
+
+#define NEPPI_BLE_UUID_CONTROLS      0xABBB
+#define NEPPI_BLE_UUID_COLOR_HUE     0xBBD0
+#define NEPPI_BLE_UUID_COLOR_VALUE   0xBBCF
+#define NEPPI_BLE_UUID_COLOR_CYCLING 0xAACF
+#define NEPPI_BLE_UUID_STATE         0xCCCF
 
 
 /**
@@ -38,12 +57,12 @@ color_hsv_t parse_message_to_hsv(uint32_t message_content)
         h = 360.0;
     }
     if (h < 0.0) {
-        h= 0.0;
+        h = 0.0;
     }
     color_hsv_t hsv_color = {
-    .h = h,
-    .s = 1.0,
-    .v = 0.5,
+        .h = h,
+        .s = 1.0,
+        .v = 0.5,
     };
     return hsv_color;
 }
@@ -60,14 +79,14 @@ NORETURN static void *adc_thread(void *arg)
     }
 }
 */
-static msg_t main_rcv_queue[MAIN_RCV_QUEUE_SIZE];
-
 int main(int ac, char **av)
 {
     DEBUG("Entering main function.\n");
     LED0_OFF; // On by default on this PCB
 
+    static msg_t main_rcv_queue[MAIN_RCV_QUEUE_SIZE];
     msg_init_queue(main_rcv_queue, MAIN_RCV_QUEUE_SIZE);
+
     kernel_pid_t main_pid = thread_getpid();
     xtimer_usleep(100);
 
@@ -77,8 +96,10 @@ int main(int ac, char **av)
     printf("Did we fail? %d\n", failure);
     xtimer_usleep(100);
 #endif
+
     // Initialize BLE
-    kernel_pid_t ble_pid = ble_neppi_init(main_pid);
+    kernel_pid_t ble_pid = ble_neppi_init(
+	main_pid, &NEPPI_BLE_UUID_BASE, NEPPI_BLE_UUID_SERVICE);
 
     // Add characteristics. We use one to send mpu data, two to send and
     // receive color data. The last 2 are for controlling color cycling
@@ -95,20 +116,20 @@ int main(int ac, char **av)
         .char_len = 1,
     };
     // MPU data. Should be at least 18 bytes.
-    ble_neppi_add_char(BLE_UUID_CONTROLS_CHARACTERISTIC, mpu_desc, 0);
+    ble_neppi_add_char(NEPPI_BLE_UUID_CONTROLS, mpu_desc, 0);
     // Color hue control. Values 0-360
-    ble_neppi_add_char(BLE_UUID_H, h_desc, 0);
+    ble_neppi_add_char(NEPPI_BLE_UUID_COLOR_HUE, h_desc, 0);
     // Color intensity control. Values 0-255
-    ble_neppi_add_char(BLE_UUID_V, generic_desc, 0);
+    ble_neppi_add_char(NEPPI_BLE_UUID_COLOR_VALUE, generic_desc, 0);
     // LED cycle clientside status control. 0-1
-    ble_neppi_add_char(BLE_UUID_CYCLING, generic_desc, 1);
+    ble_neppi_add_char(NEPPI_BLE_UUID_COLOR_CYCLING, generic_desc, 1);
     // LED sleep clientside status control. 0-1
-    ble_neppi_add_char(BLE_UUID_ACTIVE, generic_desc, 0);
+    ble_neppi_add_char(NEPPI_BLE_UUID_STATE, generic_desc, 0);
 
     // Initialize LEDs
     leds_init(main_pid);
     // Initialize the MPU9250.
-    mpu_neppi_init(main_pid, ble_pid, BLE_UUID_CONTROLS_CHARACTERISTIC);
+    mpu_neppi_init(main_pid, ble_pid, NEPPI_BLE_UUID_CONTROLS);
     // Start the ble execution.
     ble_neppi_start();
     // Start the MPU execution.
@@ -140,7 +161,7 @@ int main(int ac, char **av)
         int value = main_message.content.value;
 
         switch (main_message.type) {
-            case BLE_UUID_H:
+            case NEPPI_BLE_UUID_COLOR_HUE:
                 // Client sent a new hue
                 DEBUG("Set hue: %d\n", value);
                 color_hsv_t hsv_color = parse_message_to_hsv(value);
@@ -148,13 +169,13 @@ int main(int ac, char **av)
                 color_hsv2rgb(&hsv_color,&(led_color.color));
                 leds_set_color(led_color);
                 break;
-            case BLE_UUID_V:
+            case NEPPI_BLE_UUID_COLOR_VALUE:
                 // Client sent a new intensity
                 DEBUG("Set intensity: %d\n", value);
                 led_color.alpha = (uint8_t)(value);
                 leds_set_color(led_color);
                 break;
-            case BLE_UUID_CYCLING:
+            case NEPPI_BLE_UUID_COLOR_CYCLING:
                 // Client sent a command concerning color cycling
                 DEBUG("Set cycling: %d\n", value);
                 switch (value) {
@@ -162,7 +183,7 @@ int main(int ac, char **av)
                 case 0: leds_hold();  break;
                 }
                 break;
-            case BLE_UUID_ACTIVE:
+            case NEPPI_BLE_UUID_STATE:
                 // Client sent a command concerning led status
                 DEBUG("Set activation: %d\n", value);
                 switch (value) {
@@ -174,29 +195,29 @@ int main(int ac, char **av)
             case MESSAGE_COLOR_NEW_H:
                 // LEDs just changed color, send to Client
                 DEBUG("Color hue: %d\n", value);
-                ble_neppi_update_char(BLE_UUID_H, value);
+                ble_neppi_update_char(NEPPI_BLE_UUID_COLOR_HUE, value);
                 break;
             case MESSAGE_COLOR_NEW_V:
                 // LEDs just changed intensity, send to Client
                 DEBUG("Intensity: %d\n", value);
-                ble_neppi_update_char(BLE_UUID_V, value);
+                ble_neppi_update_char(NEPPI_BLE_UUID_COLOR_VALUE, value);
                 break;
             case MESSAGE_MPU_ACTIVE:
                 // MPU detected motion, set LED status and notify Client
                 DEBUG("Active:    %d\n", value);
                 leds_active();
                 leds_hold();
-                ble_neppi_update_char(BLE_UUID_ACTIVE, 1);
+                ble_neppi_update_char(NEPPI_BLE_UUID_STATE, 1);
                 break;
             case MESSAGE_MPU_SLEEP:
                 // MPU detected stillness, set LED status and notify Client
                 DEBUG("Sleep:     %d\n", value);
                 leds_sleep();
                 leds_cycle();
-                ble_neppi_update_char(BLE_UUID_ACTIVE, 0);
-		break;
+                ble_neppi_update_char(NEPPI_BLE_UUID_STATE, 0);
+                break;
             default:
-		DEBUG("Unknown message\n");
+                DEBUG("Unknown message\n");
                 break;
         }
     }

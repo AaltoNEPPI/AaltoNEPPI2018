@@ -24,13 +24,16 @@ typedef struct {
 } char_descr_t;
 
 /**
- * Initialization function for the BLE API.
+ * Initialize the NEPPI BLE subsystem.
  *
- * Initializes the softdevice and starts a thread to handle it.
- * Input is the main thread pid so two way communication between
- * the threads can be enstablished.
+ * Initializes the nRF52 SoftDevice and starts a thread to handle it.
+ * @param pid          a pid for a thread that shall receive SD notifications
+ * @param base_uuid    a 128 bit base UUID
+ * @param service_uuid a 16 bit UUID identifying the service within the base
  */
-kernel_pid_t ble_neppi_init(kernel_pid_t);
+kernel_pid_t ble_neppi_init(
+    kernel_pid_t pid, const ble_uuid128_t *base_uuid, uint16_t service_uuid);
+
 /**
  * Function to add characteristics. 
  *

@@ -119,20 +119,6 @@
 #define BLE_THREAD_START    555
 #define BLE_DISCONNECT_MSG  444
 #define BLE_CONNECT_MSG     333
-/*************
- * UUIDs used for the service and characteristics
- *************/
-
-// 128-bit base UUID
-#define BLE_UUID_OUR_BASE_UUID \
-{{ 0x8D, 0x19, 0x7F, 0x81, \
-   0x08, 0x08, 0x12, 0xE0, \
-   0x2B, 0x14, 0x95, 0x71, \
-   0x05, 0x06, 0x31, 0xB1, \
-}}
-
-// Just a random, but recognizable value for the service
-#define BLE_UUID_OUR_SERVICE                             0xABDC
 
 /**
  * Variable to keep track of number of characteristics.
@@ -205,12 +191,14 @@ do {                                                                            
   }                                                                             \
 } while(0)
 
-static ble_uuid_t adv_uuids[] = {{BLE_UUID_OUR_SERVICE, 0 /* Filled dynamically */}};
+static ble_uuid128_t base_uuid; /* Filled dynamically in _init() */
+static ble_uuid_t adv_uuids[1]; /* Filled dynamically in _init() */
 
 //XXX Some of these could come as input from main during initialization.
 static const ble_context_t ble_context = {
     .conn_cfg_tag = APP_BLE_CONN_CFG_TAG,
     .name = DEVICE_NAME,
+    .base_uuid = &base_uuid,
     .adv_uuids = adv_uuids,
     .adv_uuid_cnt = sizeof(adv_uuids) / sizeof(adv_uuids[0]),
     .app_adv_interval = APP_ADV_INTERVAL,
@@ -228,10 +216,9 @@ static void services_init(const ble_context_t* p_ble_context)
     ble_os_t*   p_our_service = &our_service;
 
     uint32_t      err_code;
-    ble_uuid128_t base_uuid = BLE_UUID_OUR_BASE_UUID;
 
     /* service_uuid_p->uuid already filled in */
-    err_code = sd_ble_uuid_vs_add(&base_uuid, &p_service_uuid->type);
+    err_code = sd_ble_uuid_vs_add(p_ble_context->base_uuid, &p_service_uuid->type);
     NRF_APP_ERROR_CHECK(err_code);
 
     err_code = sd_ble_gatts_service_add(BLE_GATTS_SRVC_TYPE_PRIMARY,
@@ -291,17 +278,21 @@ static void gatt_init(void)
  * Initial value should be a pointer to a byte array instead, though
  * this shouldn't matter in the scope of our project.
  */
-static void add_characteristic(ble_os_t* p_our_service, uint16_t  characteristic, uint8_t value, uint8_t char_len)
+static void add_characteristic(
+    const ble_context_t* p_ble_context,
+    ble_os_t* p_our_service,
+    uint16_t  characteristic,
+    uint8_t value,
+    uint8_t char_len)
 {
     // Before we do anything, we need to be sure that we're not full.
     assert(char_count < BLE_GATT_DB_MAX_CHARS);
 
-    ble_uuid128_t base_uuid = BLE_UUID_OUR_BASE_UUID;
     uint32_t      err_code = 0;
     ble_uuid_t    char_uuid;
 
     char_uuid.uuid = characteristic;
-    sd_ble_uuid_vs_add(&base_uuid, &char_uuid.type);
+    sd_ble_uuid_vs_add(p_ble_context->base_uuid, &char_uuid.type);
     NRF_APP_ERROR_CHECK(err_code);
 
     // Add read/write properties to our characteristic
@@ -555,8 +546,13 @@ static char ble_thread_stack[(THREAD_STACKSIZE_DEFAULT*2)];
 /*
  * API function to initialize BLE and the thread that runs it.
  */
-kernel_pid_t ble_neppi_init(kernel_pid_t main_pid)
+kernel_pid_t ble_neppi_init(
+    kernel_pid_t main_pid,
+    const ble_uuid128_t *base_uuid,
+    uint16_t service_uuid)
 {
+    adv_uuids[0].uuid = service_uuid;
+    *(ble_context.base_uuid) = *base_uuid;
     send_pid = main_pid;
     ble_init(&ble_context);
     gap_params_init(&ble_context);
@@ -589,7 +585,7 @@ uint8_t ble_neppi_add_char(uint16_t UUID, char_descr_t descriptions, uint8_t ini
     if (char_count >= BLE_GATT_DB_MAX_CHARS){
         return 0;
     }
-    add_characteristic(&our_service, UUID, initial_value, descriptions.char_len);
+    add_characteristic(&ble_context, &our_service, UUID, initial_value, descriptions.char_len);
     return 1;
 }
 /*
