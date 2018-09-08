@@ -11,9 +11,6 @@
 
 #define CHANGE_COLOR 777
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 /**
  * Struct to hold characteristic creation data.
  *
@@ -48,9 +45,5 @@ void ble_neppi_start(void);
  * Function to update a characteristic value.
  */
 void ble_neppi_update_char(uint16_t UUID, uint32_t new_value);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif //Include guard
