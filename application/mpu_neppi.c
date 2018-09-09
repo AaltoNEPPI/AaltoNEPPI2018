@@ -78,8 +78,9 @@ static int shutdown_count;
  * It's up to the thread to find out what kind of interrupt it is.
  */
 static void mpu_interrupt(void *arg) {
-    msg_t m;
-    m.type = MESSAGE_MPU_INTERRUPT;
+    msg_t m = {
+	.type = MESSAGE_MPU_INTERRUPT,
+    };
     msg_try_send(&m, mpu_thread_pid);
 }
 /**
@@ -119,11 +120,12 @@ static uint8_t calc_measurement_delta(mpu9250_results_t *n, mpu9250_results_t *o
  * to carry out operations during it.
  * XXX: Transform into double buffer static memory.
  */
-static void mpu_long_send(  kernel_pid_t target,
-                            mpu9250_results_t *accl_data,
-                            mpu9250_results_t *gyro_data,
-                            mpu9250_results_t *comp_data,
-                            uint16_t short_uuid)
+static void mpu_long_send(
+    kernel_pid_t target,
+    mpu9250_results_t *accl_data,
+    mpu9250_results_t *gyro_data,
+    mpu9250_results_t *comp_data,
+    uint16_t short_uuid)
 {
     static MPU9250_data_t buffer1, buffer2, *buffer = &buffer1;
 
@@ -139,40 +141,20 @@ static void mpu_long_send(  kernel_pid_t target,
     buffer->uuid = short_uuid;
 
     msg_t m = {
-	.type = MESSAGE_MPU_DATA,
-	.content = { .ptr = buffer },
+        .type = MESSAGE_MPU_DATA,
+        .content = { .ptr = buffer },
     };
     int r = msg_try_send(&m, target);
     switch (r) {
-	// Implement double buffering (expect short queue)
+        // Implement double buffering (expect short queue)
     case 1:   buffer = (&buffer1 == buffer)? &buffer2: &buffer1; break;
-	// Queue full, drop the data and reuse the buffer
+        // Queue full, drop the data and reuse the buffer
     case 0:   break;
-	// Error
+        // Error
     case -1:  break; // XXX What should we do here?
     }
-
-
-#if 0
-    m.type = MESSAGE_LONG_SEND_1;
-    m.content.value = (uint32_t)accel_data->x_axis | ((uint32_t)accel_data->y_axis << 16);
-    msg_send(&m, target);
-    m.type = MESSAGE_LONG_SEND_2;
-    m.content.value = (uint32_t)accel_data->z_axis | ((uint32_t)gyro_data->x_axis << 16);
-    msg_send(&m, target);
-    m.type = MESSAGE_LONG_SEND_3;
-    m.content.value = (uint32_t)gyro_data->y_axis | ((uint32_t)gyro_data->z_axis << 16);
-    msg_send(&m, target);
-    m.type = MESSAGE_LONG_SEND_4;
-    m.content.value = (uint32_t)comp_data->x_axis | ((uint32_t)comp_data->y_axis << 16);
-    msg_send(&m, target);
-    m.type = MESSAGE_LONG_SEND_5;
-    m.content.value = (uint32_t)comp_data->z_axis | ((uint32_t)short_uuid << 16);
-    msg_send(&m, target);
-#endif
 }
 
-static msg_t rcv_queue[MPU_RCV_QUEUE_SIZE];
 
 /**
  * MPU thread function. Created by mpu_neppi_init().
@@ -183,6 +165,8 @@ NORETURN static void *mpu_thread(void *arg)
     DEBUG("mpu_neppi: MPU thread started, pid: %" PRIkernel_pid "\n", thread_getpid());
     msg_t m;
     msg_t m_to_main;
+
+    static msg_t rcv_queue[MPU_RCV_QUEUE_SIZE];
     msg_init_queue(rcv_queue, MPU_RCV_QUEUE_SIZE);
     // Wait until mpu_neppi_start() has been called in main.
     for (;;) {
@@ -226,68 +210,67 @@ NORETURN static void *mpu_thread(void *arg)
     // Enable Wake on Motion. MPU will now send an interrupt if moved
     mpu9250_enable_wom(&dev, WOM_THRESHOLD, wom_freq);
     // MPU API main message loop.
+
     for (;;) {
         msg_receive(&m);
         switch (m.type) {
-            // Message came from the MPU interrupt callback
-            case MESSAGE_MPU_INTERRUPT:
-                // React differently according to MPU state.
-                if (mpu_active) {
-                    // Read interrupt status
-                    mpu9250_read_int_status(&dev, &int_result);
-                    if (int_result.raw) {
-                        // We are active and have data ready, read it
-                        mpu9250_read_accel(&dev, &acc);
-                        mpu9250_read_gyro(&dev, &gyro);
-                        mpu9250_read_compass(&dev, &comp);
-                        // Compare data to old.
-                        if (calc_measurement_delta(&acc, &acc_old)
-                                && calc_measurement_delta(&gyro, &gyro_old)
-                                && calc_measurement_delta(&comp, &comp_old)) {
-                            // Data is roughly the same as old data. Increase counter
-                            shutdown_count += 1;
-                            if (shutdown_count >= SHUTDOWN_COUNT_MAX) {
-                                // If counter fills, set new state and actiave WoM
-                                DEBUG("WoM active\n");
-                                shutdown_count = 0;
-                                mpu_active = 0;
-                                mpu9250_enable_wom(&dev, WOM_THRESHOLD, wom_freq);
-                                // Notify main about this.
-                                m_to_main.type = MESSAGE_MPU_SLEEP;
-                                msg_send(&m_to_main, main_pid);
-                                break;
-                            }
-                        }
-                        else {
-                            // Data is different from old, reset counter
-                            shutdown_count = 0;
-                        }
-                        // Send the data to Client.
-                        mpu_long_send(target_pid, &acc, &gyro, &comp, uuid);
-                        acc_old = acc;
-                        gyro_old = gyro;
-                        comp_old = comp;
-                    }
-                }
-                else {
-                    // WoM is active. We are interested only in WoM interrupts.
-                    // Read interrupt status.
-                    mpu9250_read_int_status(&dev, &int_result);
-                    if (int_result.wom) {
-                        // Movement detected. Set state to active and notify main.
-                        DEBUG("Motion detected\n");
-                        m_to_main.type = MESSAGE_MPU_ACTIVE;
-                        msg_send(&m_to_main, main_pid);
-                        mpu_active = 1;
-                        // Reset and reconfigure MPU
-                        mpu9250_reset_and_init(&dev);
-                        set_sample_rates();
-                        mpu9250_set_interrupt(&dev, 1);
-                    }
-                }
-                break;
-            default:
-                break;
+
+	case MESSAGE_MPU_INTERRUPT:
+	    // React differently according to MPU state.
+	    if (mpu_active) {
+		// Read interrupt status
+		mpu9250_read_int_status(&dev, &int_result);
+		if (int_result.raw) {
+		    // We are active and have data ready, read it
+		    mpu9250_read_accel(&dev, &acc);
+		    mpu9250_read_gyro(&dev, &gyro);
+		    mpu9250_read_compass(&dev, &comp);
+		    // Compare data to old.
+		    if (calc_measurement_delta(&acc, &acc_old)
+			&& calc_measurement_delta(&gyro, &gyro_old)
+			&& calc_measurement_delta(&comp, &comp_old)) {
+			// Data is roughly the same as old data. Increase counter
+			shutdown_count += 1;
+			if (shutdown_count >= SHUTDOWN_COUNT_MAX) {
+			    // If counter fills, set new state and actiave WoM
+			    DEBUG("WoM active\n");
+			    shutdown_count = 0;
+			    mpu_active = 0;
+			    mpu9250_enable_wom(&dev, WOM_THRESHOLD, wom_freq);
+			    // Notify main about this.
+			    m_to_main.type = MESSAGE_MPU_SLEEP;
+			    msg_send(&m_to_main, main_pid);
+			    break;
+			}
+		    } else {
+			// Data is different from old, reset counter
+			shutdown_count = 0;
+		    }
+		    // Send the data to Client.
+		    mpu_long_send(target_pid, &acc, &gyro, &comp, uuid);
+		    acc_old = acc;
+		    gyro_old = gyro;
+		    comp_old = comp;
+		}
+	    } else {
+		// WoM is active. We are interested only in WoM interrupts.
+		// Read interrupt status.
+		mpu9250_read_int_status(&dev, &int_result);
+		if (int_result.wom) {
+		    // Movement detected. Set state to active and notify main.
+		    DEBUG("Motion detected\n");
+		    m_to_main.type = MESSAGE_MPU_ACTIVE;
+		    msg_send(&m_to_main, main_pid);
+		    mpu_active = 1;
+		    // Reset and reconfigure MPU
+		    mpu9250_reset_and_init(&dev);
+		    set_sample_rates();
+		    mpu9250_set_interrupt(&dev, 1);
+		}
+	    }
+	    break;
+	default:
+	    break;
         }
     }
 }
@@ -305,10 +288,11 @@ void mpu_neppi_init(kernel_pid_t main, kernel_pid_t target, uint16_t short_uuid)
     // Initialize the MPU for the first time.
     int result = mpu9250_init(&dev, &mpu9250_params[0]);
     if (result == -1) {
-        DEBUG("[Error] The given i2c is not enabled");
-    }
-    else if (result == -2) {
-        DEBUG("[Error] The compass did not answer correctly on the given address");
+        DEBUG("mpu_neppi: [Error] The given I2C bus is not enabled");
+	return;
+    } else if (result == -2) {
+        DEBUG("mpu_neppi: [Error] The compass did not answer correctly on the given address");
+	return;
     }
     set_sample_rates();
     mpu_thread_pid = thread_create(mpu_thread_stack, sizeof(mpu_thread_stack),
@@ -316,13 +300,15 @@ void mpu_neppi_init(kernel_pid_t main, kernel_pid_t target, uint16_t short_uuid)
                    mpu_thread, NULL, "MPU");
     DEBUG("mpu_neppi: MPU thread created\n");
 }
+
 /**
  * API function to start MPU execution
  */
 void mpu_neppi_start(void)
 {
-    msg_t start_message;
-    start_message.type = MESSAGE_MPU_THREAD_START;
-    msg_send(&start_message, mpu_thread_pid);
+    msg_t m = {
+	.type = MESSAGE_MPU_THREAD_START,
+    };
+    msg_send(&m, mpu_thread_pid);
 }
 
