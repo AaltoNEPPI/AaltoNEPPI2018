@@ -543,6 +543,7 @@ NORETURN static void *ble_thread(void *arg)
             our_service.conn_handle = BLE_CONN_HANDLE_INVALID;
             break;
         default:
+            characteristic_update(&our_service, &(m.content.value), m.type);
             break;
         }
 
