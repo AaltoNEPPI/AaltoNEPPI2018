@@ -354,26 +354,26 @@ static void on_ble_evt(ble_os_t * p_our_service, ble_evt_t const * p_ble_evt)
 
     switch (p_ble_evt->header.evt_id) {
     case BLE_GATTS_EVT_SYS_ATTR_MISSING:
-	// No system attributes have been stored.
-	err_code = sd_ble_gatts_sys_attr_set(our_service.conn_handle, NULL, 0, 0);
-	NRF_APP_ERROR_CHECK(err_code);
-	break;
+        // No system attributes have been stored.
+        err_code = sd_ble_gatts_sys_attr_set(our_service.conn_handle, NULL, 0, 0);
+        NRF_APP_ERROR_CHECK(err_code);
+        break;
     case BLE_GATTC_EVT_TIMEOUT:
-	// Disconnect on GATT Client timeout event.
-	DEBUG("GATT Client Timeout.\n");
-	err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gattc_evt.conn_handle,
-					 BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
-	NRF_APP_ERROR_CHECK(err_code);
-	break;
+        // Disconnect on GATT Client timeout event.
+        DEBUG("GATT Client Timeout.\n");
+        err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gattc_evt.conn_handle,
+                                         BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
+        NRF_APP_ERROR_CHECK(err_code);
+        break;
     case BLE_GATTS_EVT_TIMEOUT:
-	// Disconnect on GATT Server timeout event.
-	DEBUG("GATT Server Timeout.\n");
-	err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gatts_evt.conn_handle,
-					 BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
-	NRF_APP_ERROR_CHECK(err_code);
-	break;
+        // Disconnect on GATT Server timeout event.
+        DEBUG("GATT Server Timeout.\n");
+        err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gatts_evt.conn_handle,
+                                         BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
+        NRF_APP_ERROR_CHECK(err_code);
+        break;
     default:
-	break;
+        break;
     }
 }
 
@@ -395,26 +395,26 @@ static void on_ble_write(ble_os_t * p_our_service, ble_evt_t const * p_ble_evt)
     ble_gatts_value_t rx_data = {
         .len = sizeof(data),
         .offset = 0,
-	.p_value = (uint8_t *)&data,
+        .p_value = (uint8_t *)&data,
     };
 
     const uint16_t handle = p_ble_evt->evt.gatts_evt.params.write.handle;
     // Check if write event is performed on our characteristic or CCCD.
     for (uint8_t i = 0; i < char_count; i++) {
-	if (handle == p_our_service->char_handles[i].value_handle) {
-	    // Get data
-	    sd_ble_gatts_value_get(p_our_service->conn_handle, handle, &rx_data);
-	    DEBUG("Value changed h=%d: %u\n", handle, data);
-	    msg_t m = {
-		.type = p_our_service->uuids[i],
-		.content = { .value = data, },
-	    };
-	    msg_try_send(&m, send_pid);
-	} else if (handle == p_our_service->char_handles[i].cccd_handle) {
-	    DEBUG("CCCD for h=%d\n", handle);
-	    // Get data
-	    sd_ble_gatts_value_get(p_our_service->conn_handle, handle, &rx_data);
-	}
+        if (handle == p_our_service->char_handles[i].value_handle) {
+            // Get data
+            sd_ble_gatts_value_get(p_our_service->conn_handle, handle, &rx_data);
+            DEBUG("Value changed h=%d: %u\n", handle, data);
+            msg_t m = {
+                .type = p_our_service->uuids[i],
+                .content = { .value = data, },
+            };
+            msg_try_send(&m, send_pid);
+        } else if (handle == p_our_service->char_handles[i].cccd_handle) {
+            DEBUG("CCCD for h=%d\n", handle);
+            // Get data
+            sd_ble_gatts_value_get(p_our_service->conn_handle, handle, &rx_data);
+        }
     }
 }
 
@@ -427,27 +427,27 @@ void ble_our_service_on_ble_evt(ble_os_t * p_our_service, ble_evt_t const * p_bl
     switch (p_ble_evt->header.evt_id) {
     case BLE_GAP_EVT_CONNECTED: {
         msg_t m = {
-	    .type = BLE_CONNECT_MSG,
-	    .content = { .value = p_ble_evt->evt.gap_evt.conn_handle, },
-	};
+            .type = BLE_CONNECT_MSG,
+            .content = { .value = p_ble_evt->evt.gap_evt.conn_handle, },
+        };
         msg_try_send(&m, ble_thread_pid);
-	break;
+        break;
     }
     case BLE_GAP_EVT_DISCONNECTED: {
         msg_t m = {
-	    .type = BLE_DISCONNECT_MSG,
-	    .content = { .value = p_ble_evt->evt.gap_evt.conn_handle, },
-	};
+            .type = BLE_DISCONNECT_MSG,
+            .content = { .value = p_ble_evt->evt.gap_evt.conn_handle, },
+        };
         msg_try_send(&m, ble_thread_pid);
-	// XXX: Also in the thread loop!?
-	p_our_service->conn_handle = BLE_CONN_HANDLE_INVALID;
-	break;
+        // XXX: Also in the thread loop!?
+        p_our_service->conn_handle = BLE_CONN_HANDLE_INVALID;
+        break;
     }
     case BLE_GATTS_EVT_WRITE:
-	on_ble_write(p_our_service, p_ble_evt);
-	break;
+        on_ble_write(p_our_service, p_ble_evt);
+        break;
     default:
-	break;
+        break;
     }
 }
 /**
@@ -465,28 +465,29 @@ static void characteristic_update(ble_os_t *p_our_service, void *value, uint16_t
         if (p_our_service->uuids[i] == uuid) {
 
             if (p_our_service->conn_handle != BLE_CONN_HANDLE_INVALID) {
-		uint16_t len = p_our_service->char_lens[i];
-		const ble_gatts_hvx_params_t hvx_params = {
-		    .handle = p_our_service->char_handles[i].value_handle,
-		    .type   = BLE_GATT_HVX_NOTIFICATION,
-		    .offset = 0,
-		    .p_len  = &len,
-		    .p_data = value,
-		};
-		sd_ble_gatts_hvx(p_our_service->conn_handle, &hvx_params);
+                uint16_t len = p_our_service->char_lens[i];
+                const ble_gatts_hvx_params_t hvx_params = {
+                    .handle = p_our_service->char_handles[i].value_handle,
+                    .type   = BLE_GATT_HVX_NOTIFICATION,
+                    .offset = 0,
+                    .p_len  = &len,
+                    .p_data = value,
+                };
+                sd_ble_gatts_hvx(p_our_service->conn_handle, &hvx_params);
 
             } else {
-		uint16_t len = p_our_service->char_lens[i];
-		ble_gatts_value_t tx_data = {
-		    .len     = len,
-		    .offset  = 0,
-		    .p_value = value,
-		};
-		sd_ble_gatts_value_set(p_our_service->conn_handle,
-				       p_our_service->char_handles[i].value_handle,
-				       &tx_data);
+                uint16_t len = p_our_service->char_lens[i];
+                ble_gatts_value_t tx_data = {
+                    .len     = len,
+                    .offset  = 0,
+                    .p_value = value,
+                };
+                sd_ble_gatts_value_set(p_our_service->conn_handle,
+                                       p_our_service->char_handles[i].value_handle,
+                                       &tx_data);
             }
         }
+        break;
     }
 }
 
@@ -538,7 +539,7 @@ NORETURN static void *ble_thread(void *arg)
             break;
         case BLE_DISCONNECT_MSG:
             LED_CONNECTED_OFF;
-	    // XXX: Also in ble_our_service_on_ble_evt
+            // XXX: Also in ble_our_service_on_ble_evt
             our_service.conn_handle = BLE_CONN_HANDLE_INVALID;
             break;
         default:
@@ -579,7 +580,7 @@ kernel_pid_t ble_neppi_init(
 void ble_neppi_start(void)
 {
     msg_t start_message = {
-	.type = BLE_THREAD_START,
+        .type = BLE_THREAD_START,
     };
     msg_send(&start_message, ble_thread_pid);
 }
@@ -591,7 +592,7 @@ void ble_neppi_start(void)
 uint8_t ble_neppi_add_char(uint16_t uuid, char_descr_t descriptions, uint8_t initial_value)
 {
     if (char_count >= BLE_GATT_DB_MAX_CHARS) {
-	DEBUG("ble_neppi: attempt to too many characteristics\n");
+        DEBUG("ble_neppi: attempt to too many characteristics\n");
         return 0;
     }
     add_characteristic(&ble_context, &our_service, uuid, initial_value, descriptions.char_len);
@@ -603,8 +604,8 @@ uint8_t ble_neppi_add_char(uint16_t uuid, char_descr_t descriptions, uint8_t ini
 void ble_neppi_update_char(uint16_t uuid, uint32_t value)
 {
     msg_t m = {
-	.type = uuid,
-	.content = { .value = value, },
+        .type = uuid,
+        .content = { .value = value, },
     };
     msg_try_send(&m, ble_thread_pid);
 }

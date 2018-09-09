@@ -166,13 +166,13 @@ int main(int ac, char **av)
                 DEBUG("Set hue: %d\n", value);
                 color_hsv_t hsv_color = parse_message_to_hsv(value);
                 //This function alters led_color.color directly. See RIOT color.c$
-                color_hsv2rgb(&hsv_color,&(led_color.color));
+                color_hsv2rgb(&hsv_color, &(led_color.color));
                 leds_set_color(led_color);
                 break;
             case NEPPI_BLE_UUID_COLOR_VALUE:
                 // Client sent a new intensity
                 DEBUG("Set intensity: %d\n", value);
-                led_color.alpha = (uint8_t)(value);
+                led_color.alpha = (uint8_t)value;
                 leds_set_color(led_color);
                 break;
             case NEPPI_BLE_UUID_COLOR_CYCLING:

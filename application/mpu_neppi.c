@@ -163,13 +163,12 @@ NORETURN static void *mpu_thread(void *arg)
 {
     (void)arg;
     DEBUG("mpu_neppi: MPU thread started, pid: %" PRIkernel_pid "\n", thread_getpid());
-    msg_t m;
-    msg_t m_to_main;
 
     static msg_t rcv_queue[MPU_RCV_QUEUE_SIZE];
     msg_init_queue(rcv_queue, MPU_RCV_QUEUE_SIZE);
     // Wait until mpu_neppi_start() has been called in main.
     for (;;) {
+	msg_t m;
         msg_receive(&m);
         if (m.type == MESSAGE_MPU_THREAD_START) {
             break;
@@ -189,22 +188,9 @@ NORETURN static void *mpu_thread(void *arg)
     static mpu9250_results_t comp;
     static mpu9250_results_t comp_old;
     // Storage for interrupt result. Check mpu9250.h in drivers.
-    static mpu9250_int_results_t int_result;
     /**
      * Select Wake on Motion wakeup frequency. Higher frequency costs more
-     * current. The options are:
-     * MPU9250_WOM_0_24HZ
-     * MPU9250_WOM_0_49HZ
-     * MPU9250_WOM_0_98HZ
-     * MPU9250_WOM_1_95HZ
-     * MPU9250_WOM_3_91HZ
-     * MPU9250_WOM_7_81HZ
-     * MPU9250_WOM_15_63HZ
-     * MPU9250_WOM_31_25HZ
-     * MPU9250_WOM_62_50HZ
-     * MPU9250_WOM_125HZ
-     * MPU9250_WOM_250HZ
-     * MPU9250_WOM_500HZ
+     * current.
      */
     mpu9250_wom_lp_t wom_freq = MPU9250_WOM_7_81HZ;
     // Enable Wake on Motion. MPU will now send an interrupt if moved
@@ -212,24 +198,26 @@ NORETURN static void *mpu_thread(void *arg)
     // MPU API main message loop.
 
     for (;;) {
+
+	msg_t m;
         msg_receive(&m);
         switch (m.type) {
 
-	case MESSAGE_MPU_INTERRUPT:
+	case MESSAGE_MPU_INTERRUPT: {
+	    mpu9250_int_results_t int_result;
+	    mpu9250_read_int_status(&dev, &int_result);
 	    // React differently according to MPU state.
 	    if (mpu_active) {
-		// Read interrupt status
-		mpu9250_read_int_status(&dev, &int_result);
 		if (int_result.raw) {
 		    // We are active and have data ready, read it
 		    mpu9250_read_accel(&dev, &acc);
 		    mpu9250_read_gyro(&dev, &gyro);
 		    mpu9250_read_compass(&dev, &comp);
-		    // Compare data to old.
+		    // Compare data with the previous values.
 		    if (calc_measurement_delta(&acc, &acc_old)
 			&& calc_measurement_delta(&gyro, &gyro_old)
 			&& calc_measurement_delta(&comp, &comp_old)) {
-			// Data is roughly the same as old data. Increase counter
+			// Data is roughly equal to previous values. Increase counter.
 			shutdown_count += 1;
 			if (shutdown_count >= SHUTDOWN_COUNT_MAX) {
 			    // If counter fills, set new state and actiave WoM
@@ -238,8 +226,10 @@ NORETURN static void *mpu_thread(void *arg)
 			    mpu_active = 0;
 			    mpu9250_enable_wom(&dev, WOM_THRESHOLD, wom_freq);
 			    // Notify main about this.
-			    m_to_main.type = MESSAGE_MPU_SLEEP;
-			    msg_send(&m_to_main, main_pid);
+			    msg_t m = {
+				.type = MESSAGE_MPU_SLEEP,
+			    };
+			    msg_send(&m, main_pid);
 			    break;
 			}
 		    } else {
@@ -255,12 +245,13 @@ NORETURN static void *mpu_thread(void *arg)
 	    } else {
 		// WoM is active. We are interested only in WoM interrupts.
 		// Read interrupt status.
-		mpu9250_read_int_status(&dev, &int_result);
 		if (int_result.wom) {
 		    // Movement detected. Set state to active and notify main.
 		    DEBUG("Motion detected\n");
-		    m_to_main.type = MESSAGE_MPU_ACTIVE;
-		    msg_send(&m_to_main, main_pid);
+		    msg_t m = {
+			.type = MESSAGE_MPU_ACTIVE,
+		    };
+		    msg_send(&m, main_pid);
 		    mpu_active = 1;
 		    // Reset and reconfigure MPU
 		    mpu9250_reset_and_init(&dev);
@@ -269,6 +260,7 @@ NORETURN static void *mpu_thread(void *arg)
 		}
 	    }
 	    break;
+	}
 	default:
 	    break;
         }
