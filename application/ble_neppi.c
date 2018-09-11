@@ -458,11 +458,11 @@ void ble_our_service_on_ble_evt(ble_os_t * p_our_service, ble_evt_t const * p_bl
  *  data:           Pointer to the byte array containing our data.
  *  uuid:           Short UUID of the characteristic we want to update.
  */
-static void characteristic_update(ble_os_t *p_our_service, void *value, uint16_t uuid)
+static void characteristic_update(ble_os_t *p_our_service, void *value, const uint16_t uuid)
 {
     // Find our UUID we want to update.
     for (uint8_t i = 0; i < char_count; i++) {
-        if (p_our_service->uuids[i] == uuid) {
+        if (uuid == p_our_service->uuids[i]) {
 
             if (p_our_service->conn_handle != BLE_CONN_HANDLE_INVALID) {
                 uint16_t len = p_our_service->char_lens[i];
@@ -486,8 +486,8 @@ static void characteristic_update(ble_os_t *p_our_service, void *value, uint16_t
                                        p_our_service->char_handles[i].value_handle,
                                        &tx_data);
             }
+	    break;
         }
-        break;
     }
 }
 
