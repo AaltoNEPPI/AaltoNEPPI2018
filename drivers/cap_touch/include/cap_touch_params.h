@@ -36,11 +36,11 @@ extern "C" {
 #ifndef CAP_TOUCH_PARAMS
 #define CAP_TOUCH_PARAMS {                      \
     .sense_pin  = CAP_TOUCH_PARAM_SENSE_PIN,    \
-    .res = ADC_RES_14BIT,			\
-    .sample_rounds = 10,			\
-    .calib_rounds = 1000,			\
-    .grounding_time = 1000,			\
-    .hysteresis = 3,				\
+    .res = ADC_RES_14BIT,                       \
+    .sample_rounds = 10,                        \
+    .calib_rounds = 100,			\
+    .grounding_time = 1000,                     \
+    .hysteresis = 3,                            \
 }
 #endif
 /**@}*/

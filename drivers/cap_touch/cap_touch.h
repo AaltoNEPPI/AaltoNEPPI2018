@@ -38,6 +38,8 @@ typedef struct {
     int       calib_rounds;    /**< Number of rounds for calibration */
     uint32_t  grounding_time;  /**< Pin grounding time in us */
     uint32_t  hysteresis;      /**< State change hysteresis */
+    uint16_t  low_bound;       /**< Lower bound for non-touching state */
+    uint16_t  high_bound;      /**< Higher bound for non-touching state */
 } cap_touch_params_t;
 
 /**
@@ -46,12 +48,24 @@ typedef struct {
 typedef cap_touch_params_t cap_touch_t;
 
 /**
+ * @brief   Current state or state change in the cap touch button
+ */
+typedef enum cap_touch_button_state {
+    OFF       = 0,
+    ON        = 1,
+} cap_touch_button_state_t;
+
+/**
  * @brief   Signature for state change interrupt
  *
- * @param[in] arg           context to the callback (optional)
- * @param[in] data          new state (zero for no touch, non-zero for finger near or touching)
+ * @param[in] state  state or state change
+ * @param[in] data   device dependent raw data
+ * @param[in] arg    context to the callback (optional)
  */
-typedef void(*cap_touch_cb_t)(void *arg, uint8_t data);
+typedef void(*cap_touch_cb_t)(
+    cap_touch_button_state_t state,
+    uint16_t data,
+    void *arg);
 
 
 /**
@@ -68,16 +82,31 @@ typedef void(*cap_touch_cb_t)(void *arg, uint8_t data);
 int cap_touch_init(cap_touch_t *dev, const cap_touch_params_t *params);
 
 /**
- * @brief   Start capacitive touch button callbacks.
+ * @brief   Calibrate a capacitive touch button
  *
  * @param[out] dev      device descriptor
- * @param[in]  cb       state change callback, executed in interrupt context
- * @param[in]  arg      optional context passed to the callback functions
+ *
+ * @pre     @p dev != NULL
+ */
+void cap_touch_calibrate(cap_touch_t *dev);
+
+/**
+ * @brief   Start capacitive touch button callbacks.
+ *
+ * @param[in]  dev    device descriptor
+ * @param[in]  cb     state change callback, executed in interrupt context
+ * @param[in]  arg    optional context passed to the callback functions
+ * @param[in]  flags  options
  *
  * @pre     @p dev != NULL
  * @pre     @p cb != NULL
  */
-void cap_touch_start(cap_touch_t *dev, cap_touch_cb_t cb, void *arg);
+void cap_touch_start(cap_touch_t *dev, cap_touch_cb_t cb, void *arg, int flags);
+
+/**
+ * @brief  Flags for cap_touch_start()
+ */
+#define CAP_TOUCH_START_FLAG_REPORT_ALL 0x01 //< Report also non-transition events
 
 #ifdef __cplusplus
 }
