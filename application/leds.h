@@ -13,10 +13,9 @@
 #define MESSAGE_COLOR_NEW           122
 #define MESSAGE_COLOR_SET_HOLD      123
 #define MESSAGE_COLOR_SET_CYCLE     124
-#define MESSAGE_COLOR_ACTIVE        125
-#define MESSAGE_COLOR_SLEEP         126
-#define MESSAGE_COLOR_NEW_H         127
-#define MESSAGE_COLOR_NEW_V         128
+#define MESSAGE_COLOR_INTENSITY     125
+#define MESSAGE_COLOR_NEW_HUE       127
+#define MESSAGE_COLOR_NEW_VALUE     128
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,7 +24,7 @@ extern "C" {
 /**
  * Changes the color of the LEDS to match led_color.
  */
-void leds_set_color(color_rgba_t led_color);
+void leds_set_color(const color_hsv_t *led_color);
 
 /**
  *Initializes the led thread and the underlying drivers.
@@ -33,14 +32,9 @@ void leds_set_color(color_rgba_t led_color);
 void leds_init(kernel_pid_t main_pid);
 
 /**
- * API function to put LEDs into sleep.
- */
-void leds_sleep(void);
-
-/**
  * API function to put LEDs into active mode.
  */
-void leds_active(void);
+void leds_set_intensity(float intensity);
 
 /**
  * API function to make LEDs cycle colors.
