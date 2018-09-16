@@ -28,8 +28,13 @@
 #include "debug.h"
 #include "ble_neppi.h"
 
+#if 0
 #define LED_CONNECTED_ON  LED0_ON
 #define LED_CONNECTED_OFF LED0_OFF
+#else
+#define LED_CONNECTED_ON  ((void)0)
+#define LED_CONNECTED_OFF ((void)0)
+#endif
 
 /**
  * Maximum number of characteristics a service can have.
@@ -486,7 +491,7 @@ static void characteristic_update(ble_os_t *p_our_service, void *value, const ui
                                        p_our_service->char_handles[i].value_handle,
                                        &tx_data);
             }
-	    break;
+            break;
         }
     }
 }
