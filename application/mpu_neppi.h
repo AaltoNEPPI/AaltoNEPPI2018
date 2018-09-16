@@ -34,19 +34,19 @@ extern "C" {
  */
 typedef struct MPU9250_data {
     union {
-	struct {
-	    uint16_t a_x;
-	    uint16_t a_y;
-	    uint16_t a_z;
-	    uint16_t g_x;
-	    uint16_t g_y;
-	    uint16_t g_z;
-	    uint16_t m_x;
-	    uint16_t m_y;
-	    uint16_t m_z;
-	    uint16_t uuid;
-	}; /* Unnamed */
-	uint8_t data[/*XXX*/10 * sizeof(uint16_t)];
+        struct {
+            uint16_t a_x;
+            uint16_t a_y;
+            uint16_t a_z;
+            uint16_t g_x;
+            uint16_t g_y;
+            uint16_t g_z;
+            uint16_t m_x;
+            uint16_t m_y;
+            uint16_t m_z;
+            uint16_t uuid;
+        }; /* Unnamed */
+        uint8_t data[/*XXX*/10 * sizeof(uint16_t)];
     }; /* Unnamed */
 }  __attribute__((packed)) MPU9250_data_t;
 

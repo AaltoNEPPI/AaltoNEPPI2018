@@ -79,7 +79,7 @@ static int shutdown_count;
  */
 static void mpu_interrupt(void *arg) {
     msg_t m = {
-	.type = MESSAGE_MPU_INTERRUPT,
+        .type = MESSAGE_MPU_INTERRUPT,
     };
     msg_try_send(&m, mpu_thread_pid);
 }
@@ -168,7 +168,7 @@ NORETURN static void *mpu_thread(void *arg)
     msg_init_queue(rcv_queue, MPU_RCV_QUEUE_SIZE);
     // Wait until mpu_neppi_start() has been called in main.
     for (;;) {
-	msg_t m;
+        msg_t m;
         msg_receive(&m);
         if (m.type == MESSAGE_MPU_THREAD_START) {
             break;
@@ -199,70 +199,72 @@ NORETURN static void *mpu_thread(void *arg)
 
     for (;;) {
 
-	msg_t m;
+        msg_t m;
         msg_receive(&m);
         switch (m.type) {
 
-	case MESSAGE_MPU_INTERRUPT: {
-	    mpu9250_int_results_t int_result;
-	    mpu9250_read_int_status(&dev, &int_result);
-	    // React differently according to MPU state.
-	    if (mpu_active) {
-		if (int_result.raw) {
-		    // We are active and have data ready, read it
-		    mpu9250_read_accel(&dev, &acc);
-		    mpu9250_read_gyro(&dev, &gyro);
-		    mpu9250_read_compass(&dev, &comp);
-		    // Compare data with the previous values.
-		    if (calc_measurement_delta(&acc, &acc_old)
-			&& calc_measurement_delta(&gyro, &gyro_old)
-			&& calc_measurement_delta(&comp, &comp_old)) {
-			// Data is roughly equal to previous values. Increase counter.
-			shutdown_count += 1;
-			if (shutdown_count >= SHUTDOWN_COUNT_MAX) {
-			    // If counter fills, set new state and actiave WoM
-			    DEBUG("WoM active\n");
-			    shutdown_count = 0;
-			    mpu_active = 0;
-			    mpu9250_enable_wom(&dev, WOM_THRESHOLD, wom_freq);
-			    // Notify main about this.
-			    msg_t m = {
-				.type = MESSAGE_MPU_SLEEP,
-			    };
-			    msg_send(&m, main_pid);
-			    break;
-			}
-		    } else {
-			// Data is different from old, reset counter
-			shutdown_count = 0;
-		    }
-		    // Send the data to Client.
-		    mpu_long_send(target_pid, &acc, &gyro, &comp, uuid);
-		    acc_old = acc;
-		    gyro_old = gyro;
-		    comp_old = comp;
-		}
-	    } else {
-		// WoM is active. We are interested only in WoM interrupts.
-		// Read interrupt status.
-		if (int_result.wom) {
-		    // Movement detected. Set state to active and notify main.
-		    DEBUG("Motion detected\n");
-		    msg_t m = {
-			.type = MESSAGE_MPU_ACTIVE,
-		    };
-		    msg_send(&m, main_pid);
-		    mpu_active = 1;
-		    // Reset and reconfigure MPU
-		    mpu9250_reset_and_init(&dev);
-		    set_sample_rates();
-		    mpu9250_set_interrupt(&dev, 1);
-		}
-	    }
-	    break;
-	}
-	default:
-	    break;
+        case MESSAGE_MPU_INTERRUPT: {
+            mpu9250_int_results_t int_result;
+            mpu9250_read_int_status(&dev, &int_result);
+            // React differently according to MPU state.
+            if (mpu_active) {
+                if (int_result.raw) {
+                    // We are active and have data ready, read it
+                    mpu9250_read_accel(&dev, &acc);
+                    mpu9250_read_gyro(&dev, &gyro);
+                    mpu9250_read_compass(&dev, &comp);
+                    // Compare data with the previous values.
+                    if (calc_measurement_delta(&acc, &acc_old)
+                        && calc_measurement_delta(&gyro, &gyro_old)
+                        && calc_measurement_delta(&comp, &comp_old)) {
+                        // Data is roughly equal to previous values. Increase counter.
+                        shutdown_count += 1;
+                        if (shutdown_count >= SHUTDOWN_COUNT_MAX) {
+                            // If counter fills, set new state and actiave WoM
+                            DEBUG("mpu_neppi: Activating WoM\n");
+                            shutdown_count = 0;
+                            mpu_active = 0;
+                            mpu9250_enable_wom(&dev, WOM_THRESHOLD, wom_freq);
+                            DEBUG("mpu_neppi: Activated WoM\n");
+                            // Notify main about this.
+                            msg_t m = {
+                                .type = MESSAGE_MPU_SLEEP,
+                            };
+                            msg_send(&m, main_pid);
+                            break;
+                        }
+                    } else {
+                        // Data is different from old, reset counter
+                        shutdown_count = 0;
+                    }
+                    // Send the data to Client.
+                    mpu_long_send(target_pid, &acc, &gyro, &comp, uuid);
+                    acc_old = acc;
+                    gyro_old = gyro;
+                    comp_old = comp;
+                }
+            } else {
+                // WoM is active. We are interested only in WoM interrupts.
+                // Read interrupt status.
+                if (int_result.wom) {
+                    // Movement detected. Set state to active and notify main.
+                    DEBUG("mpu_neppi: Motion detected\n");
+                    msg_t m = {
+                        .type = MESSAGE_MPU_ACTIVE,
+                    };
+                    msg_send(&m, main_pid);
+                    mpu_active = 1;
+                    // Reset and reconfigure MPU
+                    mpu9250_reset_and_init(&dev);
+                    set_sample_rates();
+                    mpu9250_set_interrupt(&dev, 1);
+                    DEBUG("mpu_neppi: Moting reporting started\n");
+                }
+            }
+            break;
+        }
+        default:
+            break;
         }
     }
 }
@@ -281,10 +283,10 @@ void mpu_neppi_init(kernel_pid_t main, kernel_pid_t target, uint16_t short_uuid)
     int result = mpu9250_init(&dev, &mpu9250_params[0]);
     if (result == -1) {
         DEBUG("mpu_neppi: [Error] The given I2C bus is not enabled");
-	return;
+        return;
     } else if (result == -2) {
         DEBUG("mpu_neppi: [Error] The compass did not answer correctly on the given address");
-	return;
+        return;
     }
     set_sample_rates();
     mpu_thread_pid = thread_create(mpu_thread_stack, sizeof(mpu_thread_stack),
@@ -299,7 +301,7 @@ void mpu_neppi_init(kernel_pid_t main, kernel_pid_t target, uint16_t short_uuid)
 void mpu_neppi_start(void)
 {
     msg_t m = {
-	.type = MESSAGE_MPU_THREAD_START,
+        .type = MESSAGE_MPU_THREAD_START,
     };
     msg_send(&m, mpu_thread_pid);
 }
