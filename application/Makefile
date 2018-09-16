@@ -41,6 +41,9 @@ CFLAGS += -DNRF_SDH_CLOCK_LF_RC_CTIV=6
 CFLAGS += -DNRF_SDH_CLOCK_LF_RC_TEMP_CTIV=2
 CFLAGS += -DNRF_SDH_CLOCK_LF_ACCURACY=1
 
+# XXX
+CFLAGS += -DAPA102_SHIFTED_COLORS=1
+
 # If you want to use native with valgrind, you should recompile native
 # with the target all-valgrind instead of all:
 # make -B clean all-valgrind
@@ -56,13 +59,16 @@ DEVELHELP = 1
 # Modules to include
 
 USEMODULE += shell
+USEMODULE += shell_commands
+USEMODULE += ps
 #USEMODULE += posix
 USEMODULE += xtimer
 USEMODULE += periph_uart
 USEMODULE += apa102
 USEMODULE += color
 USEMODULE += mpu9250
-#USEMODULE += periph_adc
+USEMODULE += periph_adc
+USEMODULE += cap_touch
 
 # Packages to include
 
