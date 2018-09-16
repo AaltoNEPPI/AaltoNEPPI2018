@@ -33,6 +33,8 @@ extern "C" {
  */
 typedef struct {
     gpio_t    sense_pin;       /**< Sensing pin. */
+    gpio_t    ground_pin;      /**< Through resistor grounded pin. */
+    gpio_t    hack_pin;        /**< Additional grounded pin for hacking. */
     adc_res_t res;             /**< ADC resolution. */
     int       sample_rounds;   /**< Number of averaging rounds */
     int       calib_rounds;    /**< Number of rounds for calibration */

@@ -60,7 +60,7 @@ uint32_t cap_touch_sample(const cap_touch_t *dev, adc_t line) {
     for (int i = 0; i < dev->sample_rounds; i++) {
         // Ground the pin for a while
         gpio_init(dev->sense_pin, GPIO_OUT);
-        gpio_clear(dev->sense_pin);
+        gpio_set(dev->sense_pin);
         xtimer_usleep(dev->grounding_time);
         // Convert the pin back to an input
         gpio_init(dev->sense_pin, GPIO_IN);
@@ -135,6 +135,10 @@ int cap_touch_init(cap_touch_t *dev, const cap_touch_params_t *params)
         return -4;
 
     adc_init(line);
+    gpio_init(dev->ground_pin, GPIO_OUT);
+    gpio_clear(dev->ground_pin);
+    gpio_init(dev->hack_pin, GPIO_OUT);
+    gpio_clear(dev->hack_pin);
 
     return 0;
 }
@@ -171,7 +175,8 @@ void cap_touch_start(cap_touch_t *dev, cap_touch_cb_t cb, void *arg, int flags) 
 
     static char thread_stack[THREAD_STACKSIZE_DEFAULT*2/*XXX for now, due to SD*/];
     thread_create(thread_stack, sizeof(thread_stack),
-                  THREAD_PRIORITY_MAIN + 1, THREAD_CREATE_WOUT_YIELD,
+                  THREAD_PRIORITY_MAIN + 3,
+                  THREAD_CREATE_WOUT_YIELD | THREAD_CREATE_STACKTEST,
                   cap_touch_thread, &args, "CT");
     DEBUG("cap_touch: thread created\n");
 }

@@ -30,12 +30,20 @@ extern "C" {
  * @{
  */
 #ifndef CAP_TOUCH_PARAM_SENSE_PIN
-#define CAP_TOUCH_PARAM_SENSE_PIN       (GPIO_PIN(0, 2))
+#define CAP_TOUCH_PARAM_SENSE_PIN       (GPIO_PIN(0, 30))
+#endif
+#ifndef CAP_TOUCH_PARAM_GROUND_PIN
+#define CAP_TOUCH_PARAM_GROUND_PIN      (GPIO_PIN(0, 31))
+#endif
+#ifndef CAP_TOUCH_PARAM_HACK_PIN
+#define CAP_TOUCH_PARAM_HACK_PIN        (GPIO_PIN(0, 2))
 #endif
 
 #ifndef CAP_TOUCH_PARAMS
 #define CAP_TOUCH_PARAMS {                      \
     .sense_pin  = CAP_TOUCH_PARAM_SENSE_PIN,    \
+    .ground_pin = CAP_TOUCH_PARAM_GROUND_PIN,	\
+    .hack_pin   = CAP_TOUCH_PARAM_HACK_PIN,	\
     .res = ADC_RES_14BIT,                       \
     .sample_rounds = 10,                        \
     .calib_rounds = 100,			\
