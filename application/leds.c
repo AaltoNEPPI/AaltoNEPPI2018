@@ -45,6 +45,11 @@ static uint8_t active;
 static uint8_t cycling;
 
 /**
+ * Flag to blink color
+ */
+static uint8_t blinking;
+
+/**
  * Place to hold brightness value while LEDS are in sleep state
  */
 static float last_intensity;
@@ -61,6 +66,19 @@ static color_hsv_t cycle_colors(color_hsv_t hsv)
     hsv.h += HUE_STEP;
     if (hsv.h > HUE_FULL) {
         hsv.h = 0;
+    }
+    return hsv;
+}
+
+static color_hsv_t blink_colors(color_hsv_t hsv)
+{
+    static float set_value;
+
+    if (hsv.v > 0.0f) {
+	set_value = hsv.v;
+	hsv.v     = 0.0f;
+    } else {
+	hsv.v     = set_value;
     }
     return hsv;
 }
@@ -130,7 +148,12 @@ NORETURN static void *led_thread(void *arg)
             case MESSAGE_COLOR_SET_HOLD:
                 // This means we start holding the current color/stop cycling.
                 cycling = 0;
+		blinking = 0;
                 break;
+            case MESSAGE_COLOR_SET_BLINK:
+		cycling = 0;
+		blinking = 1;
+		goto cycle;
             case MESSAGE_COLOR_SET_CYCLE:
                 // This starts the color cycle process.
                 // To prevent starting multiple timers, we ignore
@@ -139,11 +162,18 @@ NORETURN static void *led_thread(void *arg)
                     continue;
                 }
                 cycling = 1;
+		blinking = 0;
                 // FALLTHROUGH
             case MESSAGE_COLOR_CYCLE:
+	cycle:
                 // We execute a loop every 250ms, until set to hold.
-                if (cycling) {
-                    led_color = cycle_colors(led_color);
+		if (cycling || blinking) {
+		    if (cycling) {
+			led_color = cycle_colors(led_color);
+		    }
+		    if (blinking) {
+			led_color = blink_colors(led_color);
+		    }
                     leds_internal_set_color(&led_color);
                     // And we start the next cycle.
                     xtimer_set_msg(&cycle_timer, CYCLE_TIMER_US, &m_cycle, led_pid);
@@ -193,14 +223,35 @@ void leds_set_intensity(float intensity)
 
 void leds_cycle(void)
 {
-    msg_t m;
-    m.type = MESSAGE_COLOR_SET_CYCLE;
+    msg_t m = {
+	.type = MESSAGE_COLOR_SET_CYCLE,
+    };
     msg_send(&m, led_pid);
 }
 
 void leds_hold(void)
 {
-    msg_t m;
-    m.type = MESSAGE_COLOR_SET_HOLD;
+    msg_t m = {
+	.type = MESSAGE_COLOR_SET_HOLD,
+    };
     msg_send(&m, led_pid);
+}
+
+void leds_blink(void)
+{
+    msg_t m = {
+	.type = MESSAGE_COLOR_SET_BLINK,
+    };
+    msg_send(&m, led_pid);
+}
+
+static const color_rgba_t blacks[APA102_PARAM_LED_NUMOF] = {
+    // All zeros does
+};
+
+/* Emergency shutdown. IRQs are disabled, threads may not work any
+ * longer */
+void leds_off(void)
+{
+    apa102_load_rgba(&dev, blacks);
 }

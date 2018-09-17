@@ -16,6 +16,7 @@
 #define MESSAGE_COLOR_INTENSITY     125
 #define MESSAGE_COLOR_NEW_HUE       127
 #define MESSAGE_COLOR_NEW_VALUE     128
+#define MESSAGE_COLOR_SET_BLINK     130
 
 #ifdef __cplusplus
 extern "C" {
@@ -45,6 +46,16 @@ void leds_cycle(void);
  * API function to make LEDs stop cycling.
  */
 void leds_hold(void);
+
+/**
+ * Make the LEDs to blink, indicating low battery.
+ */
+void leds_blink(void);
+
+/**
+ * Make the LEDs completely off.
+ */
+void leds_off(void);
 
 #ifdef __cplusplus
 }
