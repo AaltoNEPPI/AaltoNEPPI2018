@@ -70,7 +70,6 @@ typedef void(*cap_touch_cb_t)(
     uint16_t data,
     void *arg);
 
-
 /**
  * @brief   Initialize a capacitive touch button
  *
@@ -110,6 +109,18 @@ void cap_touch_start(cap_touch_t *dev, cap_touch_cb_t cb, void *arg, int flags);
  * @brief  Flags for cap_touch_start()
  */
 #define CAP_TOUCH_START_FLAG_REPORT_ALL 0x01 //< Report also non-transition events
+
+#if 1
+/**
+ * Temporary watchdog to fix stability
+ */
+extern int cap_touch_watchdog;
+
+/**
+ * Temporary reset to fix stability
+ */
+void cap_touch_reset(cap_touch_t *dev);
+#endif
 
 #ifdef __cplusplus
 }

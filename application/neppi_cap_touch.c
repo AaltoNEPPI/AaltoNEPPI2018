@@ -56,3 +56,9 @@ void neppi_cap_touch_start(kernel_pid_t target_pid) {
 		    CAP_TOUCH_START_FLAG_REPORT_ALL /* XXX */);
 }
 
+#if 1
+void neppi_cap_touch_reset(void)
+{
+    cap_touch_reset(&dev);
+}
+#endif

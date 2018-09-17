@@ -44,6 +44,10 @@
  */
 #define SHUTDOWN_COUNT_MAX      (50)
 
+#if 1
+int mpu_neppi_watchdog;
+#endif
+
 /**
  * Messaging pids.
  */
@@ -201,6 +205,9 @@ NORETURN static void *mpu_thread(void *arg)
 
         msg_t m;
         msg_receive(&m);
+#if 1
+	mpu_neppi_watchdog = 0;
+#endif
         switch (m.type) {
 
         case MESSAGE_MPU_INTERRUPT: {
@@ -311,4 +318,10 @@ void mpu_neppi_start(void)
 void mpu_neppi_off(void)
 {
     mpu9250_poweroff(&dev);
+}
+
+void mpu_neppi_reset(void)
+{
+    DEBUG("mpu_neppi: reset\n");
+    mpu_neppi_start();
 }

@@ -22,6 +22,11 @@
 #include "neppi_shell.h"
 #include "neppi_power.h"
 
+#if 1
+#include "../drivers/cap_touch/cap_touch.h" // XXX
+int main_watchdog;
+#endif
+
 /**
  * Brightness during initialisation
  */
@@ -200,6 +205,16 @@ int main(int ac, char **av)
 
         msg_receive(&main_message);
 
+#if 1
+	main_watchdog = 0;
+	if (cap_touch_watchdog++ > 100/*XXX*/) {
+	    neppi_cap_touch_reset();
+	}
+	if (mpu_neppi_watchdog++ > 100/*XXX*/) {
+	    mpu_neppi_reset();
+	}
+#endif
+
         int value = main_message.content.value;
 
         switch (main_message.type) {
@@ -255,11 +270,10 @@ int main(int ac, char **av)
 	    case CHARGING:    state = SLEEP; break;
 	    default:                         break;
 	    }
-	    // XXX Report battery using Battery service
-	    break;
+	    /* FALLTHROUGH */
 	case MESSAGE_POWER_BATTERY_VALUE:
-	    DEBUG("Battery value: %d\n", value);
 	    // XXX Report battery using Battery service
+	    DEBUG("Battery value: %d\n", value);
 	    break;
 
         case MESSAGE_MPU_SLEEP:

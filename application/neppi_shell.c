@@ -21,7 +21,7 @@ void neppi_shell_start(void)
 {
     static char thread_stack[THREAD_STACKSIZE_DEFAULT*2/*XXX for now, due to SD*/];
     thread_create(thread_stack, sizeof(thread_stack),
-                  THREAD_PRIORITY_MAIN + 2, THREAD_CREATE_WOUT_YIELD,
+                  THREAD_PRIORITY_MAIN + 4, THREAD_CREATE_WOUT_YIELD,
                   shell_thread, NULL, "shell");
     DEBUG("neppi_shell: thread created\n");
     

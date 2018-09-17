@@ -35,6 +35,10 @@
 #error "Please define pin2line for your CPU model"
 #endif
 
+#if 1
+int cap_touch_watchdog;
+#endif
+
 static adc_t pin2line(gpio_t pin) {
     switch (pin) {
     case GPIO_PIN(0,  2): return ADC_LINE(0);
@@ -114,6 +118,9 @@ NORETURN static void *cap_touch_thread(void *arg)
 #endif
 
     for (;;) {
+#if 1
+        cap_touch_watchdog = 0;
+#endif
 #if 0
         int sample = cap_touch_sample(dev, line);
 #else
@@ -248,3 +255,12 @@ void cap_touch_start(cap_touch_t *dev, cap_touch_cb_t cb, void *arg, int flags) 
     DEBUG("cap_touch: thread created\n");
 }
 
+#if 1
+void cap_touch_reset(cap_touch_t *dev)
+{
+    DEBUG("cap_touch: reset\n");
+    /* Temp workaround for xtimer_usleep instability */
+    msg_t m = { .type = MESSAGE_CAP_PIN_CHARGE };
+    msg_try_send(&m, my_pid);
+}
+#endif

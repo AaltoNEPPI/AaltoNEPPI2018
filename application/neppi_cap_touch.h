@@ -11,3 +11,6 @@
 
 void neppi_cap_touch_init(void);
 void neppi_cap_touch_start(kernel_pid_t target_pid);
+#if 1
+void neppi_cap_touch_reset(void);
+#endif

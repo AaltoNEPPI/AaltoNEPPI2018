@@ -46,6 +46,14 @@ NORETURN static void *power_thread(void *arg)
 
     for (;;) {
 
+#if 1
+	extern int main_watchdog;
+	if (main_watchdog++ > 100) {
+	    DEBUG("Main thread blocked.  Resetting.\n");
+	    pm_reboot();
+	}
+#endif
+
 	const int adc = adc_sample(adc_line, ADC_RES_14BIT);
 	sliding_average = (sliding_average * (FACTOR-1) + adc) / FACTOR;
 
