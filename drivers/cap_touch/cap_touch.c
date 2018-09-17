@@ -152,7 +152,7 @@ NORETURN static void *cap_touch_thread(void *arg)
             sample_counter = 0;
             break;
         }
-        
+
         int sample = sample_sum/(dev->sample_rounds);
         sample_sum = 0;
 
