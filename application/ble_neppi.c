@@ -431,6 +431,7 @@ void ble_our_service_on_ble_evt(ble_os_t * p_our_service, ble_evt_t const * p_bl
     // Implement switch case handling BLE events related to our service.
     switch (p_ble_evt->header.evt_id) {
     case BLE_GAP_EVT_CONNECTED: {
+        DEBUG("ble_neppi: connected [handle:%d]\n", p_ble_evt->evt.gap_evt.conn_handle);
         msg_t m = {
             .type = BLE_CONNECT_MSG,
             .content = { .value = p_ble_evt->evt.gap_evt.conn_handle, },
@@ -439,6 +440,7 @@ void ble_our_service_on_ble_evt(ble_os_t * p_our_service, ble_evt_t const * p_bl
         break;
     }
     case BLE_GAP_EVT_DISCONNECTED: {
+        DEBUG("ble_neppi: disconnected [handle:%d]\n", p_ble_evt->evt.gap_evt.conn_handle);
         msg_t m = {
             .type = BLE_DISCONNECT_MSG,
             .content = { .value = p_ble_evt->evt.gap_evt.conn_handle, },
