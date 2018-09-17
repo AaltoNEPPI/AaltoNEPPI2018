@@ -6,7 +6,7 @@
 #### detect ones that are not listed there.
 ####
 
-KNOWN_TARGETS := all clean debug term
+KNOWN_TARGETS := all clean debug term flash reset
 
 .PHONY: $(KNOWN_TARGETS)
 
