@@ -64,6 +64,11 @@ void mpu_neppi_init(kernel_pid_t main, kernel_pid_t target, uint16_t short_uuid)
  */
 void mpu_neppi_start(void);
 
+/**
+ * Shuts down the MPU
+ */
+void mpu_neppi_off(void);
+
 #ifdef __cplusplus
 }
 #endif

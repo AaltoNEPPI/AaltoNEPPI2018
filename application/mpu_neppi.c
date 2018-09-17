@@ -258,7 +258,7 @@ NORETURN static void *mpu_thread(void *arg)
                     mpu9250_reset_and_init(&dev);
                     set_sample_rates();
                     mpu9250_set_interrupt(&dev, 1);
-                    DEBUG("mpu_neppi: Moting reporting started\n");
+                    DEBUG("mpu_neppi: Motion reporting started\n");
                 }
             }
             break;
@@ -306,3 +306,9 @@ void mpu_neppi_start(void)
     msg_send(&m, mpu_thread_pid);
 }
 
+/* Emergency shutdown. IRQs are disabled, threads may not work any
+ * longer */
+void mpu_neppi_off(void)
+{
+    mpu9250_poweroff(&dev);
+}
