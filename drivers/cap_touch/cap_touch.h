@@ -38,7 +38,8 @@ typedef struct {
     adc_res_t res;             /**< ADC resolution. */
     int       sample_rounds;   /**< Number of averaging rounds */
     int       calib_rounds;    /**< Number of rounds for calibration */
-    uint32_t  grounding_time;  /**< Pin grounding time in us */
+    uint32_t  charging_time;   /**< Pin charging time in us */
+    uint32_t  waiting_time;    /**< Time to wait before measuring, in us */
     uint32_t  hysteresis;      /**< State change hysteresis */
     uint16_t  low_bound;       /**< Lower bound for non-touching state */
     uint16_t  high_bound;      /**< Higher bound for non-touching state */

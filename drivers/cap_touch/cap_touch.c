@@ -58,12 +58,14 @@ uint32_t cap_touch_sample(const cap_touch_t *dev, adc_t line) {
 
     mutex_lock(&lock);
     for (int i = 0; i < dev->sample_rounds; i++) {
-        // Ground the pin for a while
+        // Connect the pin to a power source
         gpio_init(dev->sense_pin, GPIO_OUT);
         gpio_set(dev->sense_pin);
-        xtimer_usleep(dev->grounding_time);
-        // Convert the pin back to an input
+        xtimer_usleep(dev->charging_time);
+        // Convert the pin back to an input, floating it
         gpio_init(dev->sense_pin, GPIO_IN);
+        // Wait for a given time
+        xtimer_usleep(dev->waiting_time);
         // Sample the pin
         sample_sum += adc_sample(line, dev->res);
     }
@@ -79,6 +81,15 @@ struct args {
     int flags;
 };
 
+#define MESSAGE_CAP_PIN_CHARGE  4000
+#define MESSAGE_CAP_PIN_WAIT    4001
+#define MESSAGE_CAP_PIN_SAMPLE  4002
+
+#if 1
+static xtimer_t timer;
+static kernel_pid_t my_pid;
+#endif
+
 NORETURN static void *cap_touch_thread(void *arg)
 {
     const struct args *args = arg;
@@ -90,9 +101,64 @@ NORETURN static void *cap_touch_thread(void *arg)
 
     int hyst_count = 0;
 
-    for (;;) {
-        int sample = cap_touch_sample(dev, line);
+#if 1
+    static msg_t rcv_queue[2];
+    msg_init_queue(rcv_queue, sizeof(rcv_queue)/sizeof(rcv_queue[0]));
 
+    /* Temp workaround for xtimer_usleep instability */
+    msg_t m = { .type = MESSAGE_CAP_PIN_CHARGE };
+    xtimer_set_msg(&timer, 100, &m, my_pid);
+
+    int sample_counter = 0;
+    int sample_sum = 0;
+#endif
+
+    for (;;) {
+#if 0
+        int sample = cap_touch_sample(dev, line);
+#else
+        /* Temp workaround for xtimer_usleep instability */
+        msg_t mr;
+        msg_receive(&mr);
+        switch (mr.type) {
+        case MESSAGE_CAP_PIN_CHARGE: {
+            // DEBUG("cap_touch: charging...\n");
+            // Connect the pin to a power source
+            gpio_init(dev->sense_pin, GPIO_OUT);
+            gpio_set(dev->sense_pin);
+            msg_t m = { .type = MESSAGE_CAP_PIN_WAIT };
+            xtimer_set_msg(&timer, dev->charging_time, &m, my_pid);
+            continue;
+        }
+        case MESSAGE_CAP_PIN_WAIT: {
+            // DEBUG("cap_touch: waiting...\n");
+            // Convert the pin back to an input, floating it
+            gpio_init(dev->sense_pin, GPIO_IN);
+            // Wait for a given time
+            msg_t m = { .type = MESSAGE_CAP_PIN_SAMPLE };
+            xtimer_set_msg(&timer, dev->waiting_time, &m, my_pid);
+            continue;
+        }
+        case MESSAGE_CAP_PIN_SAMPLE:
+            // DEBUG("cap_touch: sampling...\n");
+            // Sample the pin
+            sample_sum += adc_sample(line, dev->res);
+            // If we need more samples, continue
+            if (sample_counter++ < dev->sample_rounds) {
+                msg_t m = { .type = MESSAGE_CAP_PIN_CHARGE };
+                xtimer_set_msg(&timer, 1000, &m, my_pid);
+                continue;
+            }
+            sample_counter = 0;
+            break;
+        }
+        
+        int sample = sample_sum/(dev->sample_rounds);
+        sample_sum = 0;
+
+        msg_t m = { .type = MESSAGE_CAP_PIN_CHARGE };
+        xtimer_set_msg(&timer, 1000, &m, my_pid);
+#endif
         cap_touch_button_state_t prev_state = state;
 
         switch (state) {
@@ -131,7 +197,7 @@ int cap_touch_init(cap_touch_t *dev, const cap_touch_params_t *params)
         return -2;
     if (dev->calib_rounds < 1)
         return -3;
-    if (dev->grounding_time < 1)
+    if (dev->charging_time < 1)
         return -4;
 
     adc_init(line);
@@ -174,10 +240,11 @@ void cap_touch_start(cap_touch_t *dev, cap_touch_cb_t cb, void *arg, int flags) 
     args.flags  = flags;
 
     static char thread_stack[THREAD_STACKSIZE_DEFAULT*2/*XXX for now, due to SD*/];
-    thread_create(thread_stack, sizeof(thread_stack),
-                  THREAD_PRIORITY_MAIN + 3,
-                  THREAD_CREATE_WOUT_YIELD | THREAD_CREATE_STACKTEST,
-                  cap_touch_thread, &args, "CT");
+    my_pid = thread_create(
+        thread_stack, sizeof(thread_stack),
+        THREAD_PRIORITY_MAIN + 3,
+        THREAD_CREATE_WOUT_YIELD | THREAD_CREATE_STACKTEST,
+        cap_touch_thread, &args, "CT");
     DEBUG("cap_touch: thread created\n");
 }
 

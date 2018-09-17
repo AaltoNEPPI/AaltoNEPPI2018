@@ -47,7 +47,8 @@ extern "C" {
     .res = ADC_RES_14BIT,                       \
     .sample_rounds = 10,                        \
     .calib_rounds = 100,			\
-    .grounding_time = 1000,                     \
+    .charging_time = 1000,			\
+    .waiting_time = 1000,			\
     .hysteresis = 3,                            \
 }
 #endif
