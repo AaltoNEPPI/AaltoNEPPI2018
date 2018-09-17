@@ -20,6 +20,7 @@
 #include "mpu_neppi.h"
 #include "neppi_cap_touch.h"
 #include "neppi_shell.h"
+#include "neppi_power.h"
 
 /**
  * Brightness during initialisation
@@ -51,6 +52,13 @@
 #define LED_INTENSITY_PAINTING         (1.00) // 100%
 
 /**
+ * Values for alert / low battery state
+ */
+#define LED_HUE_ALERT                 (0.00f) // Red
+#define LED_SATURATION_ALERT          (1.00f) // 100%
+#define LED_INTENSITY_ALERT           (0.10f)  // 10%
+
+/**
  * XXX
  */
 #define MAIN_RCV_QUEUE_SIZE                 (8)
@@ -78,16 +86,43 @@ static const ble_uuid128_t NEPPI_BLE_UUID_BASE = {
 #define NEPPI_BLE_UUID_COLOR_CYCLING 0xAACF
 #define NEPPI_BLE_UUID_STATE         0xCCCF
 
+// low green
+static const color_hsv_t dim_green = {
+    .h = LED_HUE_INIT1,
+    .s = LED_SATURATION_INIT,
+    .v = LED_INTENSITY_INIT,
+};
+
+// low blue glow during calibration
+static const color_hsv_t dim_blue = {
+    .h = LED_HUE_INIT2,
+    .s = LED_SATURATION_INIT,
+    .v = LED_INTENSITY_INIT,
+};
+
+static const color_hsv_t alert_red = {
+    .h = LED_HUE_ALERT,
+    .s = LED_SATURATION_ALERT,
+    .v = LED_INTENSITY_ALERT,
+};
+
 int main(int ac, char **av)
 {
     DEBUG("Entering main function.\n");
     LED0_OFF; // On by default on this PCB
+
+    DEBUG("NRF_UICR->PSELRESET[0,1]=[%d,%d]\n",
+	  NRF_UICR->PSELRESET[0],
+	  NRF_UICR->PSELRESET[1]);
 
     static msg_t main_rcv_queue[MAIN_RCV_QUEUE_SIZE];
     msg_init_queue(main_rcv_queue, MAIN_RCV_QUEUE_SIZE);
 
     kernel_pid_t main_pid = thread_getpid();
     xtimer_usleep(100);
+
+    // Initialised Power management
+    neppi_power_init(main_pid, ADC_LINE(2)/*XXX*/);
 
     // Initialize BLE
     kernel_pid_t ble_pid = ble_neppi_init(
@@ -114,12 +149,9 @@ int main(int ac, char **av)
     // Initialize the MPU9250.
     mpu_neppi_init(main_pid, ble_pid, NEPPI_BLE_UUID_CONTROLS);
 
-    // low green
-    static const color_hsv_t dim_green = {
-        .h = LED_HUE_INIT1,
-        .s = LED_SATURATION_INIT,
-        .v = LED_INTENSITY_INIT,
-    };
+    // Start power management.  This may shut down the device.
+    neppi_power_start();
+
     leds_set_color(&dim_green);
 
     // Wait for five seconds for the user to set the device
@@ -131,12 +163,6 @@ int main(int ac, char **av)
     // Start the ble execution.
     ble_neppi_start();
 
-    // low blue glow during calibration
-    static const color_hsv_t dim_blue = {
-        .h = LED_HUE_INIT2,
-        .s = LED_SATURATION_INIT,
-        .v = LED_INTENSITY_INIT,
-    };
     leds_set_color(&dim_blue);
 
     // Initialise and calibrate capacitive touch
@@ -166,7 +192,8 @@ int main(int ac, char **av)
 
     DEBUG("Entering main loop.\n");
 
-    enum { INIT, OFF, SLEEP, ACTIVE, PAINTING } state = OFF, prev_state = INIT;
+    enum { INIT, OFF, SLEEP, ACTIVE, PAINTING, BATTERY_LOW, CHARGING, BATTERY_EMPTY }
+    state = OFF, prev_state = INIT;
 
     for (;;) {
         msg_t main_message;
@@ -214,6 +241,27 @@ int main(int ac, char **av)
             ble_neppi_update_char(NEPPI_BLE_UUID_COLOR_VALUE, value);
             break;
 
+	case MESSAGE_POWER_BATTERY_EMPTY:
+	    state = BATTERY_EMPTY;
+	    break;
+	case MESSAGE_POWER_BATTERY_LOW:
+	    state = BATTERY_LOW;
+	    // XXX Report battery using Battery service
+	    break;
+	case MESSAGE_POWER_BATTERY_FULL:
+	    switch (state) {
+	    case OFF:         state = SLEEP; break;
+	    case BATTERY_LOW: state = SLEEP; break;
+	    case CHARGING:    state = SLEEP; break;
+	    default:                         break;
+	    }
+	    // XXX Report battery using Battery service
+	    break;
+	case MESSAGE_POWER_BATTERY_VALUE:
+	    DEBUG("Battery value: %d\n", value);
+	    // XXX Report battery using Battery service
+	    break;
+
         case MESSAGE_MPU_SLEEP:
             state = SLEEP;
             break;
@@ -222,11 +270,10 @@ int main(int ac, char **av)
             break;
         case MESSAGE_BUTTON_OFF:
             switch (state) {
-            case INIT:     state = OFF;    break;
-            case OFF:      state = OFF;    break;
-            case SLEEP:    state = SLEEP;  break;
-            case ACTIVE:   state = ACTIVE; break;
-            case PAINTING: state = ACTIVE; break;
+            case INIT:        state = OFF;         break;
+            case ACTIVE:      state = ACTIVE;      break;
+            case PAINTING:    state = ACTIVE;      break;
+	    default:                               break;
             }
 #if 1
 	    // XXX: Debugging
@@ -235,11 +282,11 @@ int main(int ac, char **av)
             break;
         case MESSAGE_BUTTON_ON:
             switch (state) {
-            case INIT:     state = OFF;      break;
-            case OFF:      state = SLEEP;    break;
-            case SLEEP:    state = SLEEP;    break;
-            case ACTIVE:   state = PAINTING; break;
-            case PAINTING: state = PAINTING; break;
+            case INIT:        state = OFF;         break;
+            case OFF:         state = SLEEP;       break;
+            case ACTIVE:      state = PAINTING;    break;
+            case PAINTING:    state = PAINTING;    break;
+	    default:                               break;
             }
 #if 1
 	    // XXX: Debugging
@@ -256,33 +303,46 @@ int main(int ac, char **av)
             LED0_OFF;
             switch (state) {
             case OFF:
-                DEBUG("Off:        %d\n", value);
+                DEBUG("Off:         %d\n", value);
                 leds_set_intensity(LED_INTENSITY_OFF);
                 leds_hold();
-                ble_neppi_update_char(NEPPI_BLE_UUID_STATE, OFF      | value << 8);
                 break;
             case SLEEP:
-                DEBUG("Sleep:      %d\n", value);
+                DEBUG("Sleep:       %d\n", value);
                 leds_set_intensity(LED_INTENSITY_SLEEP);
                 leds_cycle();
-                ble_neppi_update_char(NEPPI_BLE_UUID_STATE, SLEEP    | value << 8);
                 break;
             case ACTIVE:
-                DEBUG("Active:  %d\n", value);
+                DEBUG("Active:      %d\n", value);
                 leds_set_intensity(LED_INTENSITY_ACTIVE);
                 leds_hold();
-                ble_neppi_update_char(NEPPI_BLE_UUID_STATE, ACTIVE   | value << 8);
                 break;
             case PAINTING:
-                DEBUG("Painting:  %d\n", value);
+                DEBUG("Painting:    %d\n", value);
                 leds_set_intensity(LED_INTENSITY_PAINTING);
                 LED0_ON;
-                ble_neppi_update_char(NEPPI_BLE_UUID_STATE, PAINTING | value << 8);
                 break;
+	    case BATTERY_LOW:
+                DEBUG("Battery low: %d\n", value);
+		leds_set_color(&alert_red);
+		leds_blink();
+		break;
+	    case CHARGING:
+		DEBUG("Charging:    %d\n", value);
+		leds_set_intensity(LED_INTENSITY_OFF);
+		leds_hold();
+		break;
+	    case BATTERY_EMPTY:
+		irq_disable();
+		leds_off();
+		mpu_neppi_off();
+		neppi_power_shutdown();
+		/* NOTREACHED */
             default:
                 core_panic(PANIC_HARD_REBOOT, "Unknown state.");
                 /* NOTREACHED */
             }
+	    ble_neppi_update_char(NEPPI_BLE_UUID_STATE, state | value << 8);
         }
     }
     /* NOTREACHED */
