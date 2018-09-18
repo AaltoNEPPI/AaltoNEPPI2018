@@ -9,23 +9,22 @@
 #include <stdio.h>
 #include <string.h>
 
-//#define ENABLE_DEBUG (1)
-//#include "debug.h"
+#define ENABLE_DEBUG (1)
+#include "debug.h"
+
 #include "thread.h"
-#include "leds.h"
 #include "xtimer.h"
 #include "nrf_sdh_ble.h"
-#include "ble_neppi.h"
 #include "periph/gpio.h"
+#include "watchdog.h"
+
+#include "leds.h"
+#include "ble_neppi.h"
 #include "mpu_neppi.h"
 #include "neppi_cap_touch.h"
 #include "neppi_shell.h"
 #include "neppi_power.h"
-
-#if 1
-#include "../drivers/cap_touch/cap_touch.h" // XXX
-int main_watchdog;
-#endif
+#include "neppi_watchdog.h"
 
 /**
  * Brightness during initialisation
@@ -120,6 +119,12 @@ int main(int ac, char **av)
 	  NRF_UICR->PSELRESET[0],
 	  NRF_UICR->PSELRESET[1]);
 
+    // Detect the reset reason
+    uint32_t nrf_power_resetreas = NRF_POWER->RESETREAS;
+    // XXX: Should clear the reset reason
+    DEBUG("main: nrf_power_resetreas=0x%08x\n", nrf_power_resetreas);
+    int calibrate = (nrf_power_resetreas & POWER_RESETREAS_DOG_Msk)? 0: 1;
+
     static msg_t main_rcv_queue[MAIN_RCV_QUEUE_SIZE];
     msg_init_queue(main_rcv_queue, MAIN_RCV_QUEUE_SIZE);
 
@@ -151,6 +156,21 @@ int main(int ac, char **av)
 
     // Initialize LEDs
     leds_init(main_pid);
+
+    // Prepare to change the LED color to red.
+    color_hsv_t led_color = {
+        .h = LED_HUE_SLEEP,
+        .s = LED_SATURATION_INIT,
+        .v = LED_INTENSITY_SLEEP,
+    };
+#if 1
+    // Hack to restore color on watchdog reset
+    if (!calibrate) {
+	extern color_hsv_t leds_color;
+	led_color = leds_color;
+    }
+#endif
+
     // Initialize the MPU9250.
     mpu_neppi_init(main_pid, ble_pid, NEPPI_BLE_UUID_CONTROLS);
 
@@ -159,29 +179,27 @@ int main(int ac, char **av)
 
     leds_set_color(&dim_green);
 
-    // Wait for five seconds for the user to set the device
-    // on the table
-    puts("Please place the device on table for calibration.");
-    xtimer_sleep(5);
-
-    puts("Starting calibration.");
+    if (calibrate) {
+	// Wait for five seconds for the user to set the device
+	// on the table
+	puts("Please place the device on table for calibration.");
+	xtimer_sleep(15);
+    }
+    
     // Start the ble execution.
     ble_neppi_start();
 
-    leds_set_color(&dim_blue);
+    if (calibrate) {
+	puts("Starting calibration.");
+	leds_set_color(&dim_blue);
+    }
 
-    // Initialise and calibrate capacitive touch
-    neppi_cap_touch_init();
+    // Initialise and optionally calibrate capacitive touch.
+    neppi_cap_touch_init(calibrate);
 
     // Start the MPU execution.
     mpu_neppi_start();
 
-    // Put LED color to red.
-    color_hsv_t led_color = {
-        .h = LED_HUE_SLEEP,
-        .s = LED_SATURATION_INIT,
-        .v = LED_INTENSITY_SLEEP,
-    };
     leds_set_color(&led_color);
 
     // Make LEDs cycle
@@ -195,25 +213,19 @@ int main(int ac, char **av)
     // Start the shell
     neppi_shell_start();
 
+    watchdog_init(WATCHDOG_TIME_US, WATCHDOG_COUNT, NULL);
+
     DEBUG("Entering main loop.\n");
 
     enum { INIT, OFF, SLEEP, ACTIVE, PAINTING, BATTERY_LOW, CHARGING, BATTERY_EMPTY }
-    state = OFF, prev_state = INIT;
+    state = SLEEP, prev_state = INIT;
 
     for (;;) {
         msg_t main_message;
 
         msg_receive(&main_message);
 
-#if 1
-	main_watchdog = 0;
-	if (cap_touch_watchdog++ > 100/*XXX*/) {
-	    neppi_cap_touch_reset();
-	}
-	if (mpu_neppi_watchdog++ > 100/*XXX*/) {
-	    mpu_neppi_reset();
-	}
-#endif
+	watchdog_silence(WATCHDOG_MAIN);
 
         int value = main_message.content.value;
 

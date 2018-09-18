@@ -7,15 +7,20 @@
  */
 
 #include <stdlib.h>
-#include "mpu_neppi.h"
 #define ENABLE_DEBUG (1)
 #include "debug.h"
+
 #include "periph/gpio.h"
+#include "watchdog.h"
 #include "xtimer.h"
+
+#include "neppi_watchdog.h"
+#include "mpu_neppi.h"
 
 #define MPU_RCV_QUEUE_SIZE      (8)
 #define MPU_INT_PIN GPIO_PIN    (0,27)
 #define MESSAGE_MPU_INTERRUPT   (885)
+#define MESSAGE_MPU_DOGFOOD     (886)
 
 /**
  * MPU accelerometer and gyro sample rate. Must be between 4 and 1000
@@ -43,10 +48,6 @@
  * Heuristic max number of times data can be the same until WoM is activated
  */
 #define SHUTDOWN_COUNT_MAX      (50)
-
-#if 1
-int mpu_neppi_watchdog;
-#endif
 
 /**
  * Messaging pids.
@@ -159,6 +160,17 @@ static void mpu_long_send(
     }
 }
 
+/**
+ * Keep the watchdog fed
+ */
+static void feed_the_dog(void)
+{
+    static xtimer_t watchdog_wakeup;
+
+    static msg_t m = { .type = MESSAGE_MPU_DOGFOOD };
+    xtimer_set_msg(&watchdog_wakeup, WATCHDOG_TIME_US/2, &m, mpu_thread_pid);
+    watchdog_silence(WATCHDOG_MPU);
+}
 
 /**
  * MPU thread function. Created by mpu_neppi_init().
@@ -201,13 +213,14 @@ NORETURN static void *mpu_thread(void *arg)
     mpu9250_enable_wom(&dev, WOM_THRESHOLD, wom_freq);
     // MPU API main message loop.
 
+    // Start feeding the dog
+    feed_the_dog();
+
     for (;;) {
 
         msg_t m;
         msg_receive(&m);
-#if 1
-	mpu_neppi_watchdog = 0;
-#endif
+
         switch (m.type) {
 
         case MESSAGE_MPU_INTERRUPT: {
@@ -270,6 +283,9 @@ NORETURN static void *mpu_thread(void *arg)
             }
             break;
         }
+	case MESSAGE_MPU_DOGFOOD:
+	    feed_the_dog();
+	    break;
         default:
             break;
         }

@@ -41,24 +41,27 @@ static void cb(cap_touch_button_state_t state, uint16_t data, void *arg) {
     msg_try_send(&m, target_pid);
 }
 
+static uint16_t calib_low_bound  __attribute__((section(".puf")));
+static uint16_t calib_high_bound __attribute__((section(".puf")));
 
-void neppi_cap_touch_init(void)
+void neppi_cap_touch_init(int calibrate)
 {
     int r = cap_touch_init(&dev, cap_touch_params);
     if (r < 0)
 	core_panic(PANIC_GENERAL_ERROR, "XXX");
 
-    cap_touch_calibrate(&dev);
+    if (calibrate) {
+	cap_touch_calibrate(&dev);
+	calib_low_bound  = dev.low_bound;
+	calib_high_bound = dev.high_bound;
+    } else {
+	dev.low_bound   = calib_low_bound;
+	dev.high_bound  = calib_high_bound;
+    }
+    DEBUG("neppi_cap_touch: calibration range: %d-%d\n", dev.low_bound, dev.high_bound);
 }
 
 void neppi_cap_touch_start(kernel_pid_t target_pid) {
     cap_touch_start(&dev, cb, (void*)(int)target_pid,
 		    CAP_TOUCH_START_FLAG_REPORT_ALL /* XXX */);
 }
-
-#if 1
-void neppi_cap_touch_reset(void)
-{
-    cap_touch_reset(&dev);
-}
-#endif

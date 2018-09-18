@@ -122,6 +122,8 @@ static void leds_internal_set_color(color_hsv_t *led_color)
     }
 }
 
+// Hack to make the color to survive watchdog reboots
+color_hsv_t leds_color __attribute__((section(".puf")));
 
 NORETURN static void *led_thread(void *arg)
 {
@@ -131,10 +133,9 @@ NORETURN static void *led_thread(void *arg)
     msg_init_queue(leds_rcv_queue,LEDS_MESSAGE_QUEUE_SIZE);
     //initialize apa102.
     apa102_init(&dev, apa102_params);
-    color_hsv_t led_color;
     msg_t m;
     // m_cycle is used by the timer that causes colors to cycle
-    msg_t m_cycle;
+    static msg_t m_cycle;
     m_cycle.type = MESSAGE_COLOR_CYCLE;
     // The loop will wait to receive any color messages and process them.
     for (;;) {
@@ -142,8 +143,8 @@ NORETURN static void *led_thread(void *arg)
         switch (m.type) {
             case MESSAGE_COLOR_NEW:
                 // This changes the LEDs to the given color.
-                led_color = *(color_hsv_t *)m.content.ptr;
-                leds_internal_set_color(&led_color);
+                leds_color = *(color_hsv_t *)m.content.ptr;
+                leds_internal_set_color(&leds_color);
                 break;
             case MESSAGE_COLOR_SET_HOLD:
                 // This means we start holding the current color/stop cycling.
@@ -169,12 +170,12 @@ NORETURN static void *led_thread(void *arg)
                 // We execute a loop every 250ms, until set to hold.
 		if (cycling || blinking) {
 		    if (cycling) {
-			led_color = cycle_colors(led_color);
+			leds_color = cycle_colors(leds_color);
 		    }
 		    if (blinking) {
-			led_color = blink_colors(led_color);
+			leds_color = blink_colors(leds_color);
 		    }
-                    leds_internal_set_color(&led_color);
+                    leds_internal_set_color(&leds_color);
                     // And we start the next cycle.
                     xtimer_set_msg(&cycle_timer, CYCLE_TIMER_US, &m_cycle, led_pid);
                 }
@@ -182,8 +183,8 @@ NORETURN static void *led_thread(void *arg)
             case MESSAGE_COLOR_INTENSITY:
                 // The device is active again, we need to refresh the intensity.
                 active = 1;
-                led_color.v = (float)m.content.value / 10000 /*XXX*/;
-                leds_internal_set_color(&led_color);
+                leds_color.v = (float)m.content.value / 10000 /*XXX*/;
+                leds_internal_set_color(&leds_color);
                 break;
             default:
                 break;

@@ -69,18 +69,6 @@ void mpu_neppi_start(void);
  */
 void mpu_neppi_off(void);
 
-#if 1
-/**
- * Temporary watchdog to fix stability
- */
-extern int mpu_neppi_watchdog;
-
-/**
- * Temporary reset to fix stability
- */
-void mpu_neppi_reset(void);
-#endif
-
 #ifdef __cplusplus
 }
 #endif
