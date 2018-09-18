@@ -13,13 +13,13 @@
 /*
  * ADC values:
  *   At 14 bits resolution:
- *       > 14000 battery full, ~3.85V
- *       ~ 13400 battery almost empty, ~3.7V
- *       < 13000 battery empty, ~3.6V
+ *       > 13400 battery full, ~4.1V
+ *       ~ 12400 battery almost empty, ~3.6V
+ *       < 12000 battery empty, ~3.6V
  */
 #define POWER_BATTERY_FULL_ADC  14000
-#define POWER_BATTERY_LOW_ADC   13400
-#define POWER_BATTERY_EMPTY_ADC 13000
+#define POWER_BATTERY_LOW_ADC   12400
+#define POWER_BATTERY_EMPTY_ADC 12000
 
 /**
  * Hysteresis in reporting state changes, in ADC units
